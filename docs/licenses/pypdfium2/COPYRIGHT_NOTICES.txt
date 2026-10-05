@@ -1,0 +1,3 @@
+Copyright notices from installed pypdfium2 5.13.0 source headers (unmodified package):
+
+SPDX-FileCopyrightText: 2026 geisserml <geisserml@gmail.com>

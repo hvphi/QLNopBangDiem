@@ -1,0 +1,12 @@
+{
+  "name": "vku-e-gradebook",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/runner.cjs serve",
+    "typecheck": "tsc --noEmit && node scripts/runner.cjs scripts.check",
+    "test": "node scripts/runner.cjs pytest -q",
+    "e2e": "node scripts/runner.cjs tests.e2e"
+  },
+  "devDependencies": {"typescript": "~5.9.3"}
+}
