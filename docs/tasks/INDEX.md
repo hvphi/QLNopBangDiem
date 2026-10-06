@@ -61,9 +61,10 @@ T-01…T-12 là phạm vi triển khai local. T-13 giữ todo và tạm hoãn th
 | [T-50](T-50.md) | Quản lý CRUD khoa và tài khoản trường | T-49 | done |
 | [T-51](T-51.md) | Đồng bộ PRD và task cards đến CRUD quản trị | T-50 | done |
 | [T-52](T-52.md) | Kiểm kê giấy phép thư viện và thông báo bản quyền | T-51 | done |
+| [T-53](T-53.md) | Quản lý hồ sơ cá nhân và đổi mật khẩu | T-52 | done |
 
 T-14 chạy sau T-12 và không phụ thuộc T-13 đang tạm hoãn; không có task triển khai song song.
 
 ## Cách đọc trạng thái và yêu cầu hiện tại
 
-PRD [phiên bản 2.1](../PRD_gem.md) và prd_refs của từng card mô tả yêu cầu hiện hành. T-01…T-12, T-14…T-42 và T-45…T-51 đã done theo phạm vi local/tài liệu. T-13 todo/hoãn; T-43 blocked do người dùng tạm dừng API so khớp; T-44 todo/hoãn Cloudflare, dự kiến server VKU sau. Các card cũ giữ kết quả lịch sử, có ghi chú khi được card sau thay thế (mã UIS T-24, chữ ký T-36, nút/status T-33/T-35, PDF so khớp T-41). Bằng chứng kiểm thử theo từng lần chạy tại [TEST_REPORT.md](../TEST_REPORT.md); chưa nghiệm thu kết nối trường/SLA production.
+PRD [phiên bản 2.2](../PRD_gem.md) và prd_refs của từng card mô tả yêu cầu hiện hành. T-01…T-12, T-14…T-42 và T-45…T-53 đã done theo phạm vi local/tài liệu. T-13 todo/hoãn; T-43 blocked do người dùng tạm dừng API so khớp; T-44 todo/hoãn Cloudflare, dự kiến server VKU sau. Các card cũ giữ kết quả lịch sử, có ghi chú khi được card sau thay thế (mã UIS T-24, chữ ký T-36, nút/status T-33/T-35, PDF so khớp T-41). Bằng chứng kiểm thử theo từng lần chạy tại [TEST_REPORT.md](../TEST_REPORT.md); chưa nghiệm thu kết nối trường/SLA production.

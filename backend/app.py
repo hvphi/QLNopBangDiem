@@ -54,6 +54,18 @@ class UserUpdate(BaseModel):
     password: str = Field(default='',max_length=256)
 
 
+class ProfileUpdate(BaseModel):
+    model_config = {'extra': 'forbid'}
+    name: str = Field(min_length=1, max_length=100)
+
+
+class PasswordChange(BaseModel):
+    model_config = {'extra': 'forbid'}
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+    confirm_password: str = Field(min_length=1, max_length=256)
+
+
 class DepartmentInput(BaseModel):
     code: str = Field(min_length=1,max_length=100)
     name: str = Field(min_length=1,max_length=150)
@@ -141,6 +153,7 @@ def create_app(root=None, key=None, verifier=None, secure=None):
     app.state.database, app.state.storage, app.state.verifier = database, storage, verifier
     slots = threading.BoundedSemaphore(4)
     login_attempts = defaultdict(deque)
+    password_attempts = defaultdict(deque)
     attempts_lock = threading.Lock()
 
     @app.middleware('http')
@@ -353,6 +366,47 @@ def create_app(root=None, key=None, verifier=None, secure=None):
     def logout(request: Request, u: User):
         with database.connect() as db:
             db.execute('DELETE FROM sessions WHERE token=?', (hashlib.sha256(request.cookies['session'].encode()).hexdigest(),))
+        response = JSONResponse({'ok': True})
+        response.delete_cookie('session')
+        return response
+
+    @app.patch('/api/me/profile')
+    def update_profile(body: ProfileUpdate, u: User):
+        name = body.name.strip()
+        if not name:
+            raise HTTPException(422, 'Họ tên không được để trống.')
+        with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current = db.execute('SELECT * FROM users WHERE id=? AND active=1', (u['id'],)).fetchone()
+            if current is None:
+                raise HTTPException(401, 'Vui lòng đăng nhập lại.')
+            db.execute('UPDATE users SET name=? WHERE email=?', (name, current['email']))
+            audit(db, u['id'], 'update_profile', u['id'])
+            updated = db.execute('SELECT * FROM users WHERE id=?', (u['id'],)).fetchone()
+        return {'user': public_user(updated)}
+
+    @app.post('/api/me/password')
+    def change_password(body: PasswordChange, u: User):
+        if body.new_password != body.confirm_password:
+            raise HTTPException(422, 'Xác nhận mật khẩu mới không khớp.')
+        if body.new_password == body.current_password:
+            raise HTTPException(422, 'Mật khẩu mới phải khác mật khẩu hiện tại.')
+        with attempts_lock:
+            q = password_attempts[u['email']]
+            while q and q[0] < time.monotonic() - 300:
+                q.popleft()
+            if len(q) >= 5:
+                raise HTTPException(429, 'Quá nhiều lần đổi mật khẩu. Thử lại sau 5 phút.')
+            q.append(time.monotonic())
+        with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            current = db.execute('SELECT * FROM users WHERE id=? AND active=1', (u['id'],)).fetchone()
+            if current is None or not verify_password(body.current_password, current['password']):
+                raise HTTPException(422, 'Mật khẩu hiện tại không đúng.')
+            password = hash_password(body.new_password)
+            db.execute('UPDATE users SET password=? WHERE email=?', (password, current['email']))
+            db.execute('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email=?)', (current['email'],))
+            audit(db, u['id'], 'change_password', u['id'])
         response = JSONResponse({'ok': True})
         response.delete_cookie('session')
         return response

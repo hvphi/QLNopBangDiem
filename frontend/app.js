@@ -81,12 +81,29 @@ function loginView(){
 
 function shell(){
   const u=state.user;if(!u)return;
-  root.innerHTML=`<div class="layout"><aside class="sidebar"><a class="brand" href="/">VKU<span>E-GRADEBOOK</span></a><div class="side-label">KHÔNG GIAN LÀM VIỆC</div><button class="nav ${state.view==='dashboard'?'selected':''}" data-action="dashboard">▦ &nbsp; Bảng điểm</button>${u.role==='admin'?`<button class="nav ${state.view==='admin'?'selected':''}" data-action="admin">⚙ &nbsp; Quản trị hệ thống</button>`:''}<div class="sidebar-bottom"><span class="avatar">${esc(u.name.slice(0,1))}</span><strong>${esc(u.name)}</strong><small>${esc(roles[u.role])}<br>${esc(u.department)}</small><button class="logout" data-action="logout">Đăng xuất</button></div></aside><main class="workspace"><header><span>VKU / ${esc(roles[u.role])}</span><span class="secure">● &nbsp; Quản lý bảng điểm ký số</span></header><div id="content"></div><footer>VKU E-Gradebook · Giữ nguyên tài liệu, lưu dấu mọi bước xử lý.</footer></main></div><dialog id="detail-dialog"><div id="detail"></div></dialog>`;
-  root.onclick=e=>{const target=e.target instanceof Element?e.target.closest('[data-action]'):null;if(!(target instanceof HTMLElement))return;const action=target.dataset.action;void busy(async()=>{if(action==='logout'){await api('/api/logout',{method:'POST'});state.user=null;loginView();}if(action==='dashboard'){state.view='dashboard';await dashboard();}if(action==='admin'){state.view='admin';await adminView();}if(action==='detail')await detail(Number(target.dataset.id));if(action==='close'){const d=document.getElementById('detail-dialog');if(d instanceof HTMLDialogElement)d.close();}},target);};
+  root.innerHTML=`<div class="layout"><aside class="sidebar"><a class="brand" href="/">VKU<span>E-GRADEBOOK</span></a><div class="side-label">KHÔNG GIAN LÀM VIỆC</div><button class="nav ${state.view==='dashboard'?'selected':''}" data-action="dashboard">▦ &nbsp; Bảng điểm</button>${u.role==='admin'?`<button class="nav ${state.view==='admin'?'selected':''}" data-action="admin">⚙ &nbsp; Quản trị hệ thống</button>`:''}<button class="nav ${state.view==='profile'?'selected':''}" data-action="profile">◉ &nbsp; Hồ sơ cá nhân</button><div class="sidebar-bottom"><span class="avatar">${esc(u.name.slice(0,1))}</span><strong>${esc(u.name)}</strong><small>${esc(roles[u.role])}<br>${esc(u.department)}</small><button class="logout" data-action="logout">Đăng xuất</button></div></aside><main class="workspace"><header><span>VKU / ${esc(roles[u.role])}</span><span class="secure">● &nbsp; Quản lý bảng điểm ký số</span></header><div id="content"></div><footer>VKU E-Gradebook · Giữ nguyên tài liệu, lưu dấu mọi bước xử lý.</footer></main></div><dialog id="detail-dialog"><div id="detail"></div></dialog>`;
+  root.onclick=e=>{const target=e.target instanceof Element?e.target.closest('[data-action]'):null;if(!(target instanceof HTMLElement))return;const action=target.dataset.action;void busy(async()=>{if(action==='logout'){await api('/api/logout',{method:'POST'});state.user=null;loginView();}if(action==='dashboard'){state.view='dashboard';await dashboard();}if(action==='admin'){state.view='admin';await adminView();}if(action==='profile')await profileView();if(action==='detail')await detail(Number(target.dataset.id));if(action==='close'){const d=document.getElementById('detail-dialog');if(d instanceof HTMLDialogElement)d.close();}},target);};
 }
 
 /** @param {string} html */
 function content(html){const e=document.getElementById('content');if(e)e.innerHTML=html;}
+async function profileView(){
+  const me=await api('/api/me');state.user=me.user;state.csrf=me.csrf;state.view='profile';shell();
+  const u=state.user;if(!u)return;
+  content(`<section class="page-heading"><div class="eyebrow">TÀI KHOẢN</div><h1>Hồ sơ cá nhân</h1><p>Quản lý thông tin và mật khẩu đăng nhập của bạn.</p></section><div class="admin-grid"><section class="records"><h2>Thông tin cá nhân</h2><form id="profile-form"><label>Họ và tên<input name="name" value="${esc(u.name)}" required maxlength="100" autocomplete="name"></label><label>Email trường<input value="${esc(u.email)}" readonly></label><label>Vai trò<input value="${esc(roles[u.role])}" readonly></label><label>Khoa / Đơn vị<input value="${esc(u.department)}" readonly></label><p class="muted">Họ tên được cập nhật cho tất cả vai trò dùng chung email. Liên hệ quản trị viên để thay đổi email, khoa hoặc quyền.</p><button class="primary">Lưu hồ sơ</button></form></section><section class="records"><h2>Đổi mật khẩu</h2><form id="password-form"><label>Mật khẩu hiện tại<input name="current_password" type="password" required maxlength="256" autocomplete="current-password"></label><label>Mật khẩu mới<input name="new_password" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label><label>Xác nhận mật khẩu mới<input name="confirm_password" type="password" required maxlength="256" autocomplete="new-password"></label><p class="muted">Ít nhất 12 ký tự. Mật khẩu mới áp dụng cho mọi vai trò dùng chung email. Sau khi đổi, tất cả phiên đăng nhập của email này sẽ kết thúc.</p><button class="primary">Đổi mật khẩu</button></form></section></div>`);
+  form('profile-form').onsubmit=e=>{e.preventDefault();void busy(async()=>{
+    const values=new FormData(form('profile-form'));
+    const result=await api('/api/me/profile',{method:'PATCH',body:JSON.stringify({name:values.get('name')})});
+    state.user=result.user;await profileView();message('Đã cập nhật hồ sơ.');
+  },form('profile-form').querySelector('button'));};
+  form('password-form').onsubmit=e=>{e.preventDefault();void busy(async()=>{
+    const values=Object.fromEntries(new FormData(form('password-form')));
+    if(values.new_password!==values.confirm_password)throw new Error('Xác nhận mật khẩu mới không khớp.');
+    await api('/api/me/password',{method:'POST',body:JSON.stringify(values)});
+    state.user=null;state.csrf='';state.view='dashboard';loginView();message('Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.');
+  },form('password-form').querySelector('button'));};
+}
+
 async function dashboard(){
   const me=await api('/api/me');state.deadline=me.deadline;
   state.courses=await api('/api/courses');state.page=1;shell();

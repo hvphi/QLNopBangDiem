@@ -1,6 +1,6 @@
 # PRD — VKU E-Gradebook
 
-Phiên bản 2.1 · Cập nhật 06/10/2026 (Asia/Saigon). Phản ánh yêu cầu đã chốt và triển khai local đến T-50; tài liệu được rà soát tại T-51. Các thay đổi của người dùng thay thế giả định cũ về mã UIS, tài khoản, số chữ ký và nguồn so khớp. Tích hợp thật VKU/nghiệm thu sản xuất vẫn hoãn; snapshot và fixture không phải bằng chứng tích hợp thật.
+Phiên bản 2.2 · Cập nhật 06/10/2026 (Asia/Saigon). Phản ánh yêu cầu đã chốt và triển khai local đến T-53, gồm kiểm kê giấy phép T-52 và hồ sơ cá nhân T-53. Các thay đổi của người dùng thay thế giả định cũ về mã UIS, tài khoản, số chữ ký và nguồn so khớp. Tích hợp thật VKU/nghiệm thu sản xuất vẫn hoãn; snapshot và fixture không phải bằng chứng tích hợp thật.
 
 ## 1. Tổng quan sản phẩm
 
@@ -84,6 +84,8 @@ Danh mục thống kê/dropdown ĐT bổ sung T-46: CNTT — Khoa Khoa học má
 **Chọn kỳ thống kê (T-49):** Hai combo Năm học/Học kỳ đặt ngay trên bảng thống kê. Danh mục năm từ lớp hiện có, có Tất cả năm học; học kỳ gồm Tất cả, 1, 2 và hè. Đổi lựa chọn tự cập nhật thống kê/danh sách, quay về trang 1; đồng bộ hai chiều với bộ lọc danh sách khi bấm Lọc. Nút Chi tiết dùng đúng năm/kỳ của thống kê. Kỳ không có lớp vẫn hiện đủ 5 đơn vị 0/0; dữ liệu từ yêu cầu cũ không ghi đè khi đổi lựa chọn nhanh.
 
 ### 3.6. Quản trị và vận hành
+
+**Hồ sơ cá nhân (T-53):** Mọi vai trò có trang Hồ sơ cá nhân, xem email/vai trò/khoa và sửa họ tên. Họ tên đồng bộ các bản ghi cùng email; không đổi snapshot người ký lịch sử. Email/quyền/khoa/chứng thư vẫn do admin cấp. Đổi mật khẩu phải nhập mật khẩu hiện tại, mật khẩu mới tối thiểu 12 ký tự khác mật khẩu cũ và xác nhận trùng; áp dụng tất cả vai trò cùng email. CSRF/whitelist, tối đa 5 lần thử trong 5 phút, transaction/hash/audit không secrets. Hủy mọi phiên của email sau đổi, yêu cầu đăng nhập lại; email khác không bị ảnh hưởng.
 
 **Quản trị khoa/tài khoản (T-50):** Admin CRUD danh mục Khoa/Đơn vị: mã ổn định, sửa tên và tùy chọn hiển thị thống kê; chỉ xóa đơn vị chưa có tài khoản/lớp. Danh mục được lưu DB, khởi tạo một lần từ 5 đơn vị thống kê và các đơn vị cũ; không tự tạo lại mục đã xóa khi restart. Tên khoa thống kê và combobox tài khoản/lớp dùng danh mục động. Danh sách tài khoản hỗ trợ tìm kiếm, sửa họ tên/email/vai trò/khoa, trạng thái, fingerprint và mật khẩu mới (bỏ trống giữ nguyên). Cùng email được phép nhiều vai trò nhưng không trùng email–vai trò. Cấm tự xóa/khóa/bỏ vai trò admin của tài khoản đang dùng; cấm xóa tài khoản có lớp/hồ sơ/audit, cấm đổi vai trò đã liên kết hoặc đổi khoa GV phá phân công. Khóa là lựa chọn khi cần ngừng tài khoản có lịch sử. Sửa tài khoản hủy phiên cũ, sửa chính mình phải đăng nhập lại. Admin-only/CSRF/audit không secrets, không trả password và không xóa dây chuyền bảng điểm.
 

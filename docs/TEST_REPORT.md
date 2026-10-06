@@ -1,5 +1,12 @@
 # Báo cáo kiểm tra local
 
+## Hồ sơ cá nhân và đổi mật khẩu (T-53, 06/10/2026)
+
+- Mọi role có Hồ sơ cá nhân, xem email/vai trò/khoa và sửa tên; tên đồng bộ cùng email, không cho tự đổi email/role/khoa/fingerprint. Đổi mật khẩu yêu cầu mật khẩu cũ, tối thiểu 12 ký tự mới khác cũ, xác nhận trùng; đồng bộ các role cùng email, hủy mọi session của email, xóa cookie và yêu cầu đăng nhập lại. CSRF/whitelist, hash scrypt, transaction, audit không secrets, giới hạn 5 lần thử/5 phút.
+- 11 tests profile/admin catalog PASS; sau thêm kiểm tra mật khẩu cũ bị từ chối, 6 profile tests bản cuối PASS. Bao gồm 4 role sửa tên, extra field/tên trống, anonymous/CSRF, sai/yếu/trùng/xác nhận lệch/throttle, nhiều role cùng email, revoke toàn bộ phiên, giữ email khác và audit không secrets.
+- Typecheck/Python syntax/53 cards DAG/diff check PASS. E2E PASS flow bảng điểm hiện có và hồ sơ: sửa tên/hiển thị sidebar, mobile không tràn, mật khẩu sai giữ form, đổi đúng về login, đăng nhập bằng mật khẩu mới vai trò ĐT cùng email và tên đồng bộ. Lần đầu sửa selector biểu tượng; lần hai chạm login throttle của toàn bộ suite, dùng route rotate-session test-only đã có cho bước chuyển role để dành real login cho kiểm tra password mới. Không nới throttle production.
+- profile-mobile.png đã xem: hai form xếp dọc rõ trên mobile. Website restart port 8000, health OK và trang chủ 200. Không sửa dữ liệu live hoặc password thực trong kiểm thử; mọi mutation test ở database tạm. PRD 2.2 cập nhật T-53.
+
 ## Kiểm kê giấy phép thư viện (T-52, 06/10/2026)
 
 - `scripts/run.py scripts.audit_licenses` kiểm kê 52 gói Python trong cây phụ thuộc hoạt động của requirements trên Windows/Python 3.12.14 và 3 công cụ Node (TypeScript, Playwright/core). Không thiếu distribution, mọi gói có license file; giữ 90 file license/notice nguyên byte cùng metadata và SHA-256 trong docs/dependency-licenses.json. Xác minh độc lập 90/90 hash PASS.
