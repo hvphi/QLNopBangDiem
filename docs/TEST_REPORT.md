@@ -1,5 +1,12 @@
 # Báo cáo kiểm tra local
 
+## Kiểm kê giấy phép thư viện (T-52, 06/10/2026)
+
+- `scripts/run.py scripts.audit_licenses` kiểm kê 52 gói Python trong cây phụ thuộc hoạt động của requirements trên Windows/Python 3.12.14 và 3 công cụ Node (TypeScript, Playwright/core). Không thiếu distribution, mọi gói có license file; giữ 90 file license/notice nguyên byte cùng metadata và SHA-256 trong docs/dependency-licenses.json. Xác minh độc lập 90/90 hash PASS.
+- Báo cáo LICENSE_AUDIT.md và THIRD_PARTY_NOTICES mở rộng ngoài luồng PDF T-41. Đọc metadata và notices native; đối chiếu nguồn chính thức. Ghi rõ lxml thông báo iconv LGPL-2.1, tài nguyên test/schema có license riêng/thiếu license cần kiểm tra phạm vi phân phối; certifi MPL-2.0; lựa chọn FreeType FTL; browser/OS/native binary chưa phân tích đầy đủ. Không kết luận toàn bộ bundle permissive hoặc đã tuân thủ đầy đủ chỉ từ metadata.
+- pypdf requirements 6.1.1 nhưng import 6.10.0; reportlab requirements 4.4.4 nhưng import 4.4.9. Ghi font Arial của fixture không phải font nguồn mở và không được tự đóng gói file font. Không cài/đổi dependency, sửa chức năng, dữ liệu live, restart hoặc push trong lần audit.
+- Kiểm tra Python syntax/template/dependency DAG và git diff --check (code/docs; notices giữ nguyên whitespace upstream); không chạy lại E2E cho thay đổi kiểm kê/tài liệu.
+
 ## Rà soát tài liệu và bản đưa lên GitHub (T-51, 06/10/2026)
 
 - PRD 2.1 mô tả local đến T-50; cập nhật phạm vi, yêu cầu thống kê/chi tiết/bộ lọc/CRUD và truy vết T-43…T-51. CRUD nằm mục Quản trị §3.6; card T-50 trỏ đúng mục. Card/index/DEPLOYMENT ghi rõ API so khớp và Cloudflare do người dùng tạm dừng, không coi đã triển khai.
@@ -225,7 +232,7 @@ Một môn có nhiều nhóm hoặc nhiều URL tài liệu không có nghĩa l�
 
 - Nguồn chính: Acc/DS_tai_khoan_GV_VKU.xlsx, sheet tài khoản có 197 dòng. GV,TK tạo hai record cùng email/password; GV,TP ĐT ánh xạ teacher/training. Giữ TK/admin cũ của Hồ Văn Phi theo lựa chọn 2; không diễn giải sheet ghi chú lịch sử thành lệnh xóa hoặc từ chối tài khoản được người dùng thêm.
 - Thêm Nguyễn Thị Thùy Giang, nttgiang@vku.udn.vn, training, đơn vị ĐT & BĐCL. Mật khẩu trống của tài khoản mới sinh 8 ký tự có chữ hoa/thường/số; tài khoản cũ không có mật khẩu nguồn giữ hash. Không ghi mật khẩu vào audit/log. File credentials và Excel kết quả nằm trong thư mục ignored; nguồn Excel không sửa.
-- Import atomic: 15 record mới, 194 record cập nhật tên/khoa; tổng 197 GV, 11 TK, 2 ĐT, 1 admin. Import lặp tạo/cập nhật 0 record và credentials giữ nguyên. IDs/email/role/fingerprint/active của toàn bộ người dùng cũ giữ nguyên, TK/admin Phi không đổi; so sánh courses/submissions/versions/settings với backup nguyên vẹn, foreign keys sạch. Session của user có thay đổi bị thu hồi để đăng nhập lại với thông tin mới.
+- Import atomic: 15 record mới, 190 record cập nhật tên/khoa; tổng 197 GV, 11 TK, 2 ĐT, 1 admin. Import lặp tạo/cập nhật 0 record và credentials giữ nguyên. IDs/email/role/fingerprint/active của toàn bộ người dùng cũ giữ nguyên, TK/admin Phi không đổi; so sánh courses/submissions/versions/settings với backup nguyên vẹn, foreign keys sạch. Session của user có thay đổi bị thu hồi để đăng nhập lại với thông tin mới.
 - Backup SQLite trước ghi: .local/pre-excel-account-sync.sqlite3. 9 test import/API PASS, gồm role/login, idempotency, blank password, preservation và dữ liệu bất hợp lệ. Typecheck/Python syntax/30 task cards + DAG PASS.
 - Excel kết quả 211 dòng khớp credentials từng trường, mỗi email/vai trò duy nhất; có bảng lọc và freeze header. Artifact Tool inspect/error scan sạch, ảnh preview che mật khẩu kiểm tra đạt; bản Excel giao có mật khẩu thật. Health live và 5 lượt login/logout GV/TK/ĐT/admin PASS sau khi transaction hoàn tất. Không cần restart vì thay đổi này chỉ là dữ liệu tài khoản và công cụ import.
 

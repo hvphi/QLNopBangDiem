@@ -60,6 +60,7 @@ T-01…T-12 là phạm vi triển khai local. T-13 giữ todo và tạm hoãn th
 | [T-49](T-49.md) | Chọn năm học và học kỳ ngay trên bảng thống kê | T-48 | done |
 | [T-50](T-50.md) | Quản lý CRUD khoa và tài khoản trường | T-49 | done |
 | [T-51](T-51.md) | Đồng bộ PRD và task cards đến CRUD quản trị | T-50 | done |
+| [T-52](T-52.md) | Kiểm kê giấy phép thư viện và thông báo bản quyền | T-51 | done |
 
 T-14 chạy sau T-12 và không phụ thuộc T-13 đang tạm hoãn; không có task triển khai song song.
 

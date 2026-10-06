@@ -1,6 +1,8 @@
 .local/
 node_modules/
 runtime/
+# Public third-party notices are documentation, not application runtime data.
+!docs/licenses/runtime/
 __pycache__/
 .pytest_cache/
 test-results/
