@@ -207,7 +207,8 @@ def create_app(root=None, key=None, verifier=None, secure=None):
             raise HTTPException(403, 'Hồ sơ không thuộc khoa của bạn.')
 
     def get_submission(db, sid, u):
-        row = db.execute('''SELECT s.*,c.code,c.title,c.year,c.semester,c.department,c.source_pdf,
+        row = db.execute('''SELECT s.*,c.code,c.title,c.year,c.semester,c.department course_department,
+            COALESCE(NULLIF(s.receiving_department,''),c.department) department,c.source_pdf,
             c.uis_document_id,c.uis_component_document_id,u.name teacher_name FROM submissions s
             JOIN courses c ON c.id=s.course_id JOIN users u ON u.id=s.teacher_id WHERE s.id=?''', (sid,)).fetchone()
         if not row:
@@ -428,8 +429,15 @@ def create_app(root=None, key=None, verifier=None, secure=None):
             for row in rows:
                 row['submitted_assessments'] = sorted(submitted.get(row['id'],[]))
                 row['assessment_statuses'] = assessment_statuses.get(row['id'],{})
+        with database.connect() as db:
+            received = {r[0] for r in db.execute("SELECT course_id FROM submissions WHERE receiving_department=?", (u['department'],))} if u['role']=='head' else set()
         return [r for r in rows if (u['role'] != 'teacher' or r['teacher_id'] == u['id'])
-                and (u['role'] != 'head' or r['department'] == u['department'])]
+                and (u['role'] != 'head' or r['department'] == u['department'] or r['id'] in received)]
+
+    @app.get('/api/departments')
+    def receiving_departments(u: User):
+        with database.connect() as db:
+            return [dict(r) for r in db.execute('SELECT code,name FROM departments WHERE statistical=1 OR code=? ORDER BY rowid', (u['department'],))]
 
     @app.get('/api/statistics/departments')
     def department_statistics(u: User, year: str = '', semester: str = '', department: str = ''):
@@ -503,10 +511,10 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         if u['role'] == 'teacher':
             where.append('s.teacher_id=?'); args.append(u['id'])
         if u['role'] == 'head':
-            where.append('c.department=?'); args.append(u['department'])
+            where.append("COALESCE(NULLIF(s.receiving_department,''),c.department)=?"); args.append(u['department'])
         if course_id:
             where.append('s.course_id=?'); args.append(course_id)
-        for col, val in [('c.year',year),('c.semester',semester),('c.department',department),('c.code',code),('s.status',status),('s.assessment_type',assessment_type)]:
+        for col, val in [('c.year',year),('c.semester',semester),("COALESCE(NULLIF(s.receiving_department,''),c.department)",department),('c.code',code),('s.status',status),('s.assessment_type',assessment_type)]:
             if val:
                 where.append(col + '=?'); args.append(val)
         for col, val in [('c.title',title),('u.name',teacher)]:
@@ -519,7 +527,7 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         page = max(1, page)
         with database.connect() as db:
             total = db.execute('SELECT COUNT(*)'+query+clause,args).fetchone()[0]
-            rows = db.execute('SELECT s.*,c.code,c.title,c.year,c.semester,c.department,u.name teacher_name,'
+            rows = db.execute("SELECT s.*,c.code,c.title,c.year,c.semester,c.department course_department,COALESCE(NULLIF(s.receiving_department,''),c.department) department,u.name teacher_name,"
                               '(SELECT v.signatures FROM versions v WHERE v.submission_id=s.id AND v.version<=s.version ORDER BY v.version DESC LIMIT 1) signatures'+query+clause+
                               ' ORDER BY s.updated_at DESC LIMIT 25 OFFSET ?',args+[(page-1)*25]).fetchall()
         items = [dict(r) for r in rows]
@@ -530,13 +538,20 @@ def create_app(root=None, key=None, verifier=None, secure=None):
     @app.post('/api/submissions')
     def submit(u: User, course_id: Annotated[int, Form()], file: Annotated[UploadFile, File()],
                version: Annotated[int, Form()] = 0, submission_id: Annotated[int, Form()] = 0,
-               assessment_type: Annotated[str, Form()] = 'final', document_label: Annotated[str, Form()] = ''):
+               assessment_type: Annotated[str, Form()] = 'final', document_label: Annotated[str, Form()] = '',
+               receiving_department: Annotated[str, Form()] = ''):
         require(u, 'teacher')
         if assessment_type not in ('component','final','other') or len(document_label.strip()) > 200:
             raise HTTPException(422,'Loại bảng điểm không hợp lệ hoặc tên bảng điểm vượt 200 ký tự.')
         data = read_file(file)
         with database.connect() as db:
             c = get_course(db, course_id); scope(u,c); deadline_check(db,u)
+            recipient = receiving_department.strip() or u['department']
+            if submission_id and not receiving_department.strip():
+                previous = get_submission(db,submission_id,u)
+                recipient = previous['department']
+            if not db.execute('SELECT 1 FROM departments WHERE code=? AND (statistical=1 OR code=?)', (recipient,u['department'])).fetchone():
+                raise HTTPException(422,'Khoa nhận bảng điểm không hợp lệ. Hãy chọn khoa trong danh mục.')
             teacher_ids, expected = teacher_identities(db,c,assessment_type,data=data)
             if submission_id:
                 old = get_submission(db,submission_id,u)
@@ -547,6 +562,8 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         with database.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             c = get_course(db, course_id); scope(u,c); deadline_check(db,u)
+            if not db.execute('SELECT 1 FROM departments WHERE code=? AND (statistical=1 OR code=?)', (recipient,u['department'])).fetchone():
+                raise HTTPException(422,'Khoa nhận bảng điểm không còn trong danh mục.')
             fresh_ids, _ = teacher_identities(db,c,assessment_type,data=data)
             if fresh_ids != teacher_ids:
                 raise HTTPException(409,'Phân công GV ký đã thay đổi. Tải lại lớp và nộp lại.')
@@ -559,7 +576,7 @@ def create_app(root=None, key=None, verifier=None, secure=None):
                     raise HTTPException(422,'Hồ sơ nộp lại phải thuộc đúng lớp và loại bảng điểm.')
                 state_check(old,version,['rejected'])
                 sid, v = old['id'], old['version']+1
-                db.execute("UPDATE submissions SET status='submitted',version=?,reason='',head_id=NULL,updated_at=?,second_teacher_id=? WHERE id=?",(v,now(),second_teacher,sid))
+                db.execute("UPDATE submissions SET status='submitted',version=?,reason='',head_id=NULL,updated_at=?,second_teacher_id=?,receiving_department=? WHERE id=?",(v,now(),second_teacher,recipient,sid))
             else:
                 if version != 0:
                     raise HTTPException(409,'Phiên bản hồ sơ không đúng.')
@@ -568,11 +585,11 @@ def create_app(root=None, key=None, verifier=None, secure=None):
                     (course_id,assessment_type,hashlib.sha256(data).hexdigest())).fetchone()
                 if duplicate:
                     raise HTTPException(409,f'PDF này đã được nộp ở hồ sơ #{duplicate["id"]} cùng loại. Nếu hồ sơ bị trả, chọn Nộp lại đúng hồ sơ đó.')
-                cursor = db.execute("INSERT INTO submissions(course_id,teacher_id,status,updated_at,assessment_type,document_label,second_teacher_id) VALUES(?,?,'submitted',?,?,?,?)",
-                                    (course_id,u['id'],now(),assessment_type,document_label.strip(),second_teacher))
+                cursor = db.execute("INSERT INTO submissions(course_id,teacher_id,status,updated_at,assessment_type,document_label,second_teacher_id,receiving_department) VALUES(?,?,'submitted',?,?,?,?,?)",
+                                    (course_id,u['id'],now(),assessment_type,document_label.strip(),second_teacher,recipient))
                 sid, v = cursor.lastrowid, 1
             persist(db,sid,v,data,c,reports)
-            audit(db,u['id'],'teacher_submit',sid)
+            audit(db,u['id'],'teacher_submit',sid,'Khoa nhận: '+recipient)
         return {'id': sid, 'version': v}
 
     @app.get('/api/submissions/{sid}/pdf')
@@ -739,7 +756,7 @@ def create_app(root=None, key=None, verifier=None, secure=None):
             db.execute('BEGIN IMMEDIATE')
             if not db.execute('SELECT 1 FROM departments WHERE code=?',(code,)).fetchone():
                 raise HTTPException(404,'Không tìm thấy khoa.')
-            if db.execute('SELECT 1 FROM users WHERE department=? UNION SELECT 1 FROM courses WHERE department=?',(code,code)).fetchone():
+            if db.execute('SELECT 1 FROM users WHERE department=? UNION SELECT 1 FROM courses WHERE department=? UNION SELECT 1 FROM submissions WHERE receiving_department=?',(code,code,code)).fetchone():
                 raise HTTPException(409,'Khoa đang có tài khoản hoặc lớp học phần; không thể xóa.')
             db.execute('DELETE FROM departments WHERE code=?',(code,))
             audit(db,u['id'],'delete_department',code)

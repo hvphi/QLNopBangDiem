@@ -1,5 +1,12 @@
 # Báo cáo kiểm tra local
 
+## Khoa nhận bảng điểm (T-54, 06/10/2026)
+
+- Combobox Khoa nhận bảng điểm mặc định khoa GV; danh mục động từ server, lưu riêng receiving_department trên từng hồ sơ. TK scope/list/download/verification/reject/head-sign theo khoa nhận; list/filter hiển thị khoa nhận, course_department giữ khoa sở hữu lớp. Nộp lại rejected giữ khoa trước, cho phép chọn lại; pending/archived không chuyển. Không đổi phân công hay thống kê theo khoa sở hữu lớp. Xóa khoa đang nhận hồ sơ bị chặn.
+- Lần kiểm tra rộng: 68 PASS/1 FAIL do test gọi route detail không tồn tại (404), sửa test để kiểm tra các route thật. Bản cuối: 8 tests receiving-department/statistics PASS, thêm 1 test default khoa GV khác khoa lớp PASS. Bao gồm khoa lạ/đơn vị không nhận, anonymous, RBAC TK cũ/nhận, signature thật/archival/PDF bytes, nộp lại/đổi khoa/state/version, migration/idempotence/giữ versions và xóa khoa có hồ sơ.
+- Typecheck/syntax/54 cards/DAG/diff check PASS. E2E PASS combobox 5 đơn vị/default CNTT/chọn KTS, nộp thành phần sang KTS, hiển thị KTS/reset CNTT và TK CNTT không thấy hồ sơ đó; cùng các flow ký/trả/nộp lại/duyệt/so khớp/admin/deadline/profile/mobile. Lần đầu selector exact nhãn select không khớp nội dung options; bổ sung aria-label rõ ràng, chạy lại đạt. Đã xem giao diện combobox trên ảnh, bố cục nằm giữa lớp học phần và upload PDF.
+- Backup online .local/pre-recipient-20261006-151934.sqlite3 trước restart; đối chiếu tất cả cột cũ giữ nguyên 211 users, 1.618 courses, 4 submissions, 6 versions. Chỉ thêm khoa nhận của hồ sơ cũ từ khoa lớp. Website restart cổng 8000, health OK; không sửa PDF/password/dữ liệu phân công live.
+
 ## Hồ sơ cá nhân và đổi mật khẩu (T-53, 06/10/2026)
 
 - Mọi role có Hồ sơ cá nhân, xem email/vai trò/khoa và sửa tên; tên đồng bộ cùng email, không cho tự đổi email/role/khoa/fingerprint. Đổi mật khẩu yêu cầu mật khẩu cũ, tối thiểu 12 ký tự mới khác cũ, xác nhận trùng; đồng bộ các role cùng email, hủy mọi session của email, xóa cookie và yêu cầu đăng nhập lại. CSRF/whitelist, hash scrypt, transaction, audit không secrets, giới hạn 5 lần thử/5 phút.

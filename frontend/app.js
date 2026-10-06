@@ -2,7 +2,7 @@
 /** @typedef {{id:number,email:string,name:string,role:string,department:string,fingerprint:string,active:number}} User */
 /** @typedef {{id:number,code:string,title:string,year:string,semester:string,department:string,teacher_id:number,co_teacher_id:number|null,submitted_assessments:string[],assessment_statuses:Record<string,string>,uis_document_id:string,uis_component_document_id:string,teaching_schedule:string,teaching_room:string,teaching_weeks:string}} Course */
 /** @typedef {{signer_name?:string,field:string,signer_emails?:string[],fingerprint?:string,trust_verified?:boolean,revocation_verified?:boolean,validation_policy?:string}} Signature */
-/** @typedef {{signatures:Signature[],id:number,course_id:number,version:number,status:string,reason:string,code:string,title:string,year:string,semester:string,department:string,teacher_name:string,updated_at:string,assessment_type:string,document_label:string}} Submission */
+/** @typedef {{signatures:Signature[],id:number,course_id:number,version:number,status:string,reason:string,code:string,title:string,year:string,semester:string,department:string,receiving_department:string,teacher_name:string,updated_at:string,assessment_type:string,document_label:string}} Submission */
 /** @type {{user:User|null,csrf:string,deadline:string|null,courses:Course[],items:Submission[],page:number,pages:number,total:number,view:string}} */
 const state = {user:null,csrf:'',deadline:null,courses:[],items:[],page:1,pages:1,total:0,view:'dashboard'};
 /** @type {Record<string,string>} */
@@ -113,7 +113,7 @@ async function dashboard(){
   const departmentFilter=form('filters').querySelector('[name=department]');
   if(u.role==='training'){
     const years=[...new Set(state.courses.map(c=>c.year))].sort().reverse();
-    document.querySelector('#content .records')?.insertAdjacentHTML('beforebegin',`<section class="records" id="department-statistics" aria-live="polite"><h2>Thống kê nộp bảng điểm theo Khoa</h2><div class="filters"><label>Năm học<select id="statistics-year" aria-label="Năm học thống kê"><option value="">Tất cả năm học</option>${years.map(year=>`<option value="${esc(year)}">${esc(year)}</option>`).join('')}</select></label><label>Học kỳ<select id="statistics-semester" aria-label="Học kỳ thống kê"><option value="">Tất cả học kỳ</option><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option><option value="3">Học kỳ hè</option></select></label></div><p class="muted">Chọn năm học và học kỳ để thống kê; khoa theo bộ lọc danh sách bên dưới. Mỗi lớp tính một lần khi có ít nhất một hồ sơ đã nộp, kể cả hồ sơ bị trả lại; không yêu cầu đã nộp đủ hai loại. Tổng là số lớp học phần trong danh mục, bao gồm lớp chưa nộp.</p><div id="department-statistics-table"></div></section>`);
+    document.querySelector('#content .records')?.insertAdjacentHTML('beforebegin',`<section class="records" id="department-statistics" aria-live="polite"><h2>Thống kê nộp bảng điểm theo Khoa</h2><div class="filters"><label>Năm học<select id="statistics-year" aria-label="Năm học thống kê"><option value="">Tất cả năm học</option>${years.map(year=>`<option value="${esc(year)}">${esc(year)}</option>`).join('')}</select></label><label>Học kỳ<select id="statistics-semester" aria-label="Học kỳ thống kê"><option value="">Tất cả học kỳ</option><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option><option value="3">Học kỳ hè</option></select></label></div><p class="muted">Chọn năm học và học kỳ để thống kê; khoa theo bộ lọc danh sách bên dưới. Mỗi lớp tính một lần khi có ít nhất một hồ sơ đã nộp, kể cả hồ sơ bị trả lại; không yêu cầu đã nộp đủ hai loại. Tổng là số lớp học phần trong danh mục, bao gồm lớp chưa nộp. Thống kê theo khoa sở hữu lớp; danh sách hồ sơ bên dưới hiển thị khoa nhận bảng điểm.</p><div id="department-statistics-table"></div></section>`);
     const changePeriod=()=>{
       const year=form('filters').querySelector('[name=year]'),semester=form('filters').querySelector('[name=semester]');
       if(year instanceof HTMLInputElement)year.value=select('statistics-year').value;
@@ -123,8 +123,8 @@ async function dashboard(){
     select('statistics-year').onchange=changePeriod;select('statistics-semester').onchange=changePeriod;
   }
   if(departmentFilter instanceof HTMLInputElement){
-    const departments=[...new Set(state.courses.map(c=>c.department))].sort((a,b)=>a.localeCompare(b,'vi'));
-    const units=u.role==='training'?(await api('/api/statistics/departments')).items.map(/** @param {{department:string,department_name:string}} unit */unit=>({code:unit.department,name:unit.department_name})):departments.map(code=>({code,name:code}));
+    const departments=[...new Set([...state.courses.map(c=>c.department),u.department])].sort((a,b)=>a.localeCompare(b,'vi'));
+    const units=u.role==='training'?(await api('/api/statistics/departments')).items.map(/** @param {{department:string,department_name:string}} unit */unit=>({code:unit.department,name:unit.department_name})):(await api('/api/departments')).map(/** @param {{code:string,name:string}} unit */unit=>unit);
     departmentFilter.outerHTML=`<select name="department" aria-label="Khoa"><option value="">Tất cả khoa</option>${units.map(/** @param {{code:string,name:string}} unit */unit=>`<option value="${esc(unit.code)}">${esc(unit.name)}</option>`).join('')}</select>`;
   }
   if(me.signature_policy==='local'){
@@ -136,6 +136,10 @@ async function dashboard(){
   if(prev)prev.onclick=()=>{state.page--;void busy(loadList);};if(next)next.onclick=()=>{state.page++;void busy(loadList);};
   if(u.role==='teacher'){
     const f=form('upload-form');
+    /** @type {{code:string,name:string}[]} */
+    const recipients=await api('/api/departments');
+    const courseLabel=f.querySelector('label');
+    courseLabel?.insertAdjacentHTML('afterend',`<label>Khoa nhận bảng điểm<select id="receiving-department" aria-label="Khoa nhận bảng điểm" name="receiving_department" required ${expired?'disabled':''}>${recipients.map(d=>`<option value="${esc(d.code)}" ${d.code===u.department?'selected':''}>${esc(d.code+' · '+d.name)}</option>`).join('')}</select></label><p class="muted">Mặc định khoa của bạn. Trưởng khoa được chọn sẽ duyệt và ký bảng điểm này.</p>`);
     document.querySelector('.upload-card')?.insertAdjacentHTML('beforebegin',`<section class="records"><h2>Các lớp học phần tôi dạy</h2><div class="filters"><label>Năm học giảng dạy<select id="teaching-year">${[...new Set(state.courses.map(c=>c.year))].sort().reverse().map(y=>`<option>${esc(y)}</option>`).join('')}</select></label><label>Học kỳ giảng dạy<select id="teaching-semester"><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option><option value="3">Học kỳ hè</option></select></label></div><div id="teaching-courses"></div></section>`);
     const latest=[...state.courses].sort((a,b)=>b.year.localeCompare(a.year)||Number(b.semester)-Number(a.semester))[0];
     if(latest){select('teaching-year').value=latest.year;select('teaching-semester').value=latest.semester;}
@@ -193,6 +197,9 @@ function selectResubmission(row){
   if(!Array.from(target.options).some(option=>option.value===String(row.id)))target.add(new Option(`Nộp lại #${row.id}`,String(row.id)));
   target.value=String(row.id);target.selectedOptions[0].dataset.version=String(row.version);
   input('document-label').value=row.document_label;input('document-label').disabled=true;
+  const recipient=select('receiving-department'),code=row.receiving_department||row.department;
+  if(!Array.from(recipient.options).some(option=>option.value===code))recipient.add(new Option(code,code));
+  recipient.value=code;
 }
 
 /** @param {Submission} row */
@@ -222,7 +229,7 @@ async function loadList(){
   if(courses){state.courses=courses;renderTeachingCourses();}
   state.items=data.items;state.total=data.total;state.pages=data.pages;
   const table=document.getElementById('table');if(!table)return;
-  table.innerHTML=state.items.length?`<div class="table-wrap"><table><thead><tr><th>Lớp học phần</th><th>Giảng viên / Khoa</th><th>Học kỳ</th><th>Trạng thái</th><th></th></tr></thead><tbody>${state.items.map(s=>`<tr><td><strong>${esc(s.title)}</strong><small>${esc(s.code)} · Phiên bản ${s.version}</small></td><td>${esc(s.teacher_name)}<small>${esc(s.department)}</small></td><td>HK ${esc(s.semester)}<small>${esc(s.year)}</small></td><td><span class="badge ${esc(s.status)}">${esc(statusLabel(s.status))}</span>${s.reason?`<small class="reason">${esc(s.reason)}</small>`:''}</td><td><button class="text-link" data-action="detail" data-id="${s.id}">Mở hồ sơ →</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><span>▤</span><h3>Chưa có bảng điểm</h3><p>${state.courses.length?'Hồ sơ phù hợp sẽ xuất hiện tại đây sau khi nộp.':'Chưa có lớp được cấu hình. Liên hệ quản trị viên để đồng bộ danh mục UIS.'}</p></div>`;
+  table.innerHTML=state.items.length?`<div class="table-wrap"><table><thead><tr><th>Lớp học phần</th><th>Giảng viên / Khoa</th><th>Học kỳ</th><th>Trạng thái</th><th></th></tr></thead><tbody>${state.items.map(s=>`<tr><td><strong>${esc(s.title)}</strong><small>${esc(s.code)} · Phiên bản ${s.version}</small></td><td>${esc(s.teacher_name)}<small>Khoa nhận: ${esc(s.department)}</small></td><td>HK ${esc(s.semester)}<small>${esc(s.year)}</small></td><td><span class="badge ${esc(s.status)}">${esc(statusLabel(s.status))}</span>${s.reason?`<small class="reason">${esc(s.reason)}</small>`:''}</td><td><button class="text-link" data-action="detail" data-id="${s.id}">Mở hồ sơ →</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><span>▤</span><h3>Chưa có bảng điểm</h3><p>${state.courses.length?'Hồ sơ phù hợp sẽ xuất hiện tại đây sau khi nộp.':'Chưa có lớp được cấu hình. Liên hệ quản trị viên để đồng bộ danh mục UIS.'}</p></div>`;
   for(const [index,tr] of Array.from(table.querySelectorAll('tbody tr')).entries()){
     const row=state.items[index];tr.querySelector('td')?.insertAdjacentHTML('beforeend',`<small><strong>${esc(assessmentTypes[row.assessment_type])}</strong>${row.document_label?' · '+esc(row.document_label):''} · Hồ sơ #${row.id}</small>`);
     if(state.user?.role==='training'){

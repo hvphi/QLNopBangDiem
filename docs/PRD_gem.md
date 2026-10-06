@@ -1,6 +1,6 @@
 # PRD — VKU E-Gradebook
 
-Phiên bản 2.2 · Cập nhật 06/10/2026 (Asia/Saigon). Phản ánh yêu cầu đã chốt và triển khai local đến T-53, gồm kiểm kê giấy phép T-52 và hồ sơ cá nhân T-53. Các thay đổi của người dùng thay thế giả định cũ về mã UIS, tài khoản, số chữ ký và nguồn so khớp. Tích hợp thật VKU/nghiệm thu sản xuất vẫn hoãn; snapshot và fixture không phải bằng chứng tích hợp thật.
+Phiên bản 2.3 · Cập nhật 06/10/2026 (Asia/Saigon). Phản ánh yêu cầu đã chốt và triển khai local đến T-54, gồm kiểm kê giấy phép T-52, hồ sơ cá nhân T-53 và khoa nhận bảng điểm T-54. Các thay đổi của người dùng thay thế giả định cũ về mã UIS, tài khoản, số chữ ký và nguồn so khớp. Tích hợp thật VKU/nghiệm thu sản xuất vẫn hoãn; snapshot và fixture không phải bằng chứng tích hợp thật.
 
 ## 1. Tổng quan sản phẩm
 
@@ -84,6 +84,8 @@ Danh mục thống kê/dropdown ĐT bổ sung T-46: CNTT — Khoa Khoa học má
 **Chọn kỳ thống kê (T-49):** Hai combo Năm học/Học kỳ đặt ngay trên bảng thống kê. Danh mục năm từ lớp hiện có, có Tất cả năm học; học kỳ gồm Tất cả, 1, 2 và hè. Đổi lựa chọn tự cập nhật thống kê/danh sách, quay về trang 1; đồng bộ hai chiều với bộ lọc danh sách khi bấm Lọc. Nút Chi tiết dùng đúng năm/kỳ của thống kê. Kỳ không có lớp vẫn hiện đủ 5 đơn vị 0/0; dữ liệu từ yêu cầu cũ không ghi đè khi đổi lựa chọn nhanh.
 
 ### 3.6. Quản trị và vận hành
+
+**Khoa nhận bảng điểm (T-54):** GV có combobox Khoa nhận bảng điểm từ danh mục khoa/Tổ Cơ bản, mặc định khoa GV. Lưu khoa nhận riêng từng hồ sơ; TK chỉ xem/tải/trả/ký hồ sơ thuộc khoa nhận, kể cả GV thuộc khoa khác. Các thao tác vẫn kiểm tra chủ lớp, chữ ký, trạng thái/version và hạn. Nộp lại hồ sơ rejected giữ khoa trước và cho phép chọn lại; không chuyển hồ sơ đang duyệt. Hồ sơ cũ backfill khoa lớp một lần, không thay byte PDF. Không đổi khoa GV/phân công/khoa sở hữu courses; thống kê lớp vẫn theo khoa sở hữu lớp, danh sách hồ sơ/filter khoa theo khoa nhận. Khoa đang nhận hồ sơ không được xóa.
 
 **Hồ sơ cá nhân (T-53):** Mọi vai trò có trang Hồ sơ cá nhân, xem email/vai trò/khoa và sửa họ tên. Họ tên đồng bộ các bản ghi cùng email; không đổi snapshot người ký lịch sử. Email/quyền/khoa/chứng thư vẫn do admin cấp. Đổi mật khẩu phải nhập mật khẩu hiện tại, mật khẩu mới tối thiểu 12 ký tự khác mật khẩu cũ và xác nhận trùng; áp dụng tất cả vai trò cùng email. CSRF/whitelist, tối đa 5 lần thử trong 5 phút, transaction/hash/audit không secrets. Hủy mọi phiên của email sau đổi, yêu cầu đăng nhập lại; email khác không bị ảnh hưởng.
 

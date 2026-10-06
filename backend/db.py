@@ -53,6 +53,9 @@ class Database:
             ''')
             self.migrate_users(db)
             self.migrate_documents(db)
+            if 'receiving_department' not in {r['name'] for r in db.execute('PRAGMA table_info(submissions)')}:
+                db.execute("ALTER TABLE submissions ADD COLUMN receiving_department TEXT NOT NULL DEFAULT ''")
+                db.execute("UPDATE submissions SET receiving_department=COALESCE((SELECT department FROM courses WHERE id=submissions.course_id),'')")
             for table, column in [('courses','co_teacher_id'),('submissions','second_teacher_id')]:
                 if column not in {r['name'] for r in db.execute('PRAGMA table_info('+table+')')}:
                     db.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' INTEGER REFERENCES users(id)')
