@@ -1,5 +1,9 @@
 # Đầu vào và nghiệm thu sản xuất (T-13)
 
+## Quyết định triển khai mới nhất — 05/10/2026
+
+Người dùng yêu cầu hoãn Cloudflare (T-44), dự kiến triển khai trên server VKU sau. Chưa publish website; khi mở lại cần thông tin server, domain/TLS và quyền triển khai. So Khớp trực tiếp API daotao (T-43) cũng đang tạm dừng; So Khớp PDF/local vẫn giữ. Không tự tiếp tục các hạng mục hoãn.
+
 Người dùng xác nhận ngày 04/10/2026: **chưa cần kết nối thật với VKU**. T-13 giữ todo để triển khai trong giai đoạn sau; không thuộc phạm vi hoàn thành local hiện tại. Chưa triển khai hoặc gửi dữ liệu đến hệ thống bên ngoài.
 
 | Đầu vào cần từ VKU | Mục đích |
@@ -21,3 +25,9 @@ Người dùng xác nhận ngày 04/10/2026: **chưa cần kết nối thật v�
 6. Đo latency, throughput và lỗi với tải nghìn người. Nếu vượt giới hạn SQLite/worker, chuyển DB PostgreSQL, đưa PKI vào process worker + queue, dùng kho object mã hóa và idempotency keys. Không công bố SLA trước kết quả benchmark.
 
 T-13 chỉ chuyển in_progress khi người dùng mở lại phạm vi kết nối thật và cung cấp đầu vào tương ứng.
+
+## Bổ sung ngày 05/10/2026 — So Khớp trực tiếp (T-43)
+
+Người dùng đã yêu cầu mở riêng chức năng đọc bảng điểm thật daotao. Cần URL bảng điểm/export và cơ chế phiên đăng nhập cán bộ hoặc API được xác nhận; không gửi mật khẩu/token trong chat. Hiện adapter chỉ đọc PDF local, chức năng upload/so khớp PDF T-41 vẫn hoạt động. T-43 chờ đầu vào truy cập, chưa triển khai trực tiếp; T-13 về SSO/kho/TLS/trust/nghiệm thu tải còn hoãn.
+
+Ngày 06/10/2026: bản local đã hoàn tất thống kê/chi tiết khoa, bộ lọc năm/kỳ và CRUD khoa/tài khoản T-45…T-50. Không thay đổi trạng thái hoãn API daotao hoặc Cloudflare.

@@ -13,6 +13,7 @@ class Database:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
+            new_departments = not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='departments'").fetchone()
             db.executescript('''
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS users (
@@ -55,6 +56,16 @@ class Database:
             for table, column in [('courses','co_teacher_id'),('submissions','second_teacher_id')]:
                 if column not in {r['name'] for r in db.execute('PRAGMA table_info('+table+')')}:
                     db.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' INTEGER REFERENCES users(id)')
+            db.execute('CREATE TABLE IF NOT EXISTS departments (code TEXT PRIMARY KEY, name TEXT NOT NULL, statistical INTEGER NOT NULL DEFAULT 1)')
+            if new_departments:
+                db.executemany('INSERT INTO departments(code,name) VALUES(?,?)',[
+                    ('CNTT','Khoa Khoa học máy tính'),('KTMT','Khoa Kỹ thuật máy tính và Điện tử'),
+                    ('KTS','Khoa Kinh tế số và Thương mại điện tử'),('AIDS','Khoa Trí tuệ nhân tạo và Khoa học dữ liệu'),('CB','Tổ Cơ bản')])
+                db.executemany('INSERT INTO departments(code,name,statistical) VALUES(?,?,0)',[
+                    ('VKU','Trường VKU'),('ĐT & BĐCL','Phòng Đào tạo & BĐCL'),('Chưa phân khoa','Chưa phân khoa')])
+                for row in db.execute('SELECT department FROM users UNION SELECT department FROM courses').fetchall():
+                    if row['department']:
+                        db.execute('INSERT OR IGNORE INTO departments(code,name,statistical) VALUES(?,?,0)',(row['department'],row['department']))
 
     def migrate_users(self, db):
         legacy = any(index['unique'] and

@@ -23,6 +23,7 @@ function statusLabel(status){
 /** @type {Record<string,string>} */
 const assessmentTypes = {final:'Bảng điểm cuối kỳ',component:'Bảng điểm thành phần',other:'Bảng điểm khác'};
 let uploadRefreshGeneration=0;
+let listRefreshGeneration=0;
 /** @param {string} title */
 function guidanceCourse(title){return /(?:^|[^\p{L}\p{N}_])(?:đồ án|đề án|thực tập|kiến tập)(?=$|[^\p{L}\p{N}_])/u.test(title.normalize('NFC').toLocaleLowerCase('vi').replace(/\s+/g,' ').trim());}
 /** @param {string} title @param {string} kind */
@@ -93,9 +94,21 @@ async function dashboard(){
   const expired=state.deadline&&new Date(state.deadline)<new Date();
   content(`<section class="page-heading"><div class="eyebrow">QUY TRÌNH BẢNG ĐIỂM</div><h1>${u.role==='teacher'?'Bảng điểm của tôi':u.role==='head'?'Duyệt bảng điểm của khoa':'Kho bảng điểm điện tử'}</h1><p>${u.role==='teacher'?'Nộp PDF đã ký số và theo dõi từng bước xử lý.':u.role==='head'?'Kiểm tra, tải PDF để ký số và chuyển đến Phòng Đào tạo.':'Tiếp nhận, xác minh và tra cứu bảng điểm theo học kỳ.'}</p></section><div class="deadline ${expired?'expired':''}">${state.deadline?`${expired?'Đã hết hạn · chỉ xem đối với GV và TK':'Thời hạn nộp'}: ${esc(new Date(state.deadline).toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh'}))}`:'Chưa đặt thời hạn nộp. Quản trị viên cần cấu hình trước đợt nộp.'}</div>${u.role==='teacher'?`<section class="upload-card"><div><span class="step">01</span><h2>Gửi bảng điểm đã ký</h2><p>Xuất từ UIS, ký bằng VGCA Sign Tool rồi nộp PDF gốc. Tối đa 20 MB.</p></div><form id="upload-form"><label>Lớp học phần<select name="course_id" required><option value="">Chọn lớp học phần</option>${state.courses.map(c=>`<option value="${c.id}">${esc(c.code+' · '+c.title+' · HK'+c.semester+' '+c.year)}</option>`).join('')}</select></label><a id="export-link" class="text-link" hidden>Tải PDF xuất từ UIS ↗</a><label>PDF đã có chữ ký giảng viên<input type="file" name="file" accept="application/pdf,.pdf" required ${expired?'disabled':''}></label><button class="primary" type="submit" ${expired?'disabled':''}>Gửi trưởng khoa →</button></form></section>`:''}<section class="records"><div class="section-heading"><h2>Danh sách bảng điểm</h2><span id="total" class="muted"></span></div><form id="filters" class="filters"><label class="search">Tìm kiếm<input name="q" placeholder="Mã lớp, môn học, giảng viên…"></label><label>Năm học<input name="year" placeholder="2025-2026"></label><label>Học kỳ<select name="semester"><option value="">Tất cả</option><option>1</option><option>2</option><option>3</option></select></label><label>Khoa<input name="department" placeholder="Tất cả khoa"></label><label>Trạng thái<select name="status"><option value="">Tất cả</option>${Object.keys(statuses).map(k=>`<option value="${k}">${esc(statusLabel(k))}</option>`).join('')}</select></label><button type="submit" class="secondary">Lọc</button></form><div id="table"></div><div class="pagination"><button id="prev" class="secondary">← Trước</button><span id="page"></span><button id="next" class="secondary">Sau →</button></div></section>`);
   const departmentFilter=form('filters').querySelector('[name=department]');
+  if(u.role==='training'){
+    const years=[...new Set(state.courses.map(c=>c.year))].sort().reverse();
+    document.querySelector('#content .records')?.insertAdjacentHTML('beforebegin',`<section class="records" id="department-statistics" aria-live="polite"><h2>Thống kê nộp bảng điểm theo Khoa</h2><div class="filters"><label>Năm học<select id="statistics-year" aria-label="Năm học thống kê"><option value="">Tất cả năm học</option>${years.map(year=>`<option value="${esc(year)}">${esc(year)}</option>`).join('')}</select></label><label>Học kỳ<select id="statistics-semester" aria-label="Học kỳ thống kê"><option value="">Tất cả học kỳ</option><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option><option value="3">Học kỳ hè</option></select></label></div><p class="muted">Chọn năm học và học kỳ để thống kê; khoa theo bộ lọc danh sách bên dưới. Mỗi lớp tính một lần khi có ít nhất một hồ sơ đã nộp, kể cả hồ sơ bị trả lại; không yêu cầu đã nộp đủ hai loại. Tổng là số lớp học phần trong danh mục, bao gồm lớp chưa nộp.</p><div id="department-statistics-table"></div></section>`);
+    const changePeriod=()=>{
+      const year=form('filters').querySelector('[name=year]'),semester=form('filters').querySelector('[name=semester]');
+      if(year instanceof HTMLInputElement)year.value=select('statistics-year').value;
+      if(semester instanceof HTMLSelectElement)semester.value=select('statistics-semester').value;
+      state.page=1;void busy(loadList);
+    };
+    select('statistics-year').onchange=changePeriod;select('statistics-semester').onchange=changePeriod;
+  }
   if(departmentFilter instanceof HTMLInputElement){
     const departments=[...new Set(state.courses.map(c=>c.department))].sort((a,b)=>a.localeCompare(b,'vi'));
-    departmentFilter.outerHTML=`<select name="department" aria-label="Khoa"><option value="">Tất cả khoa</option>${departments.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')}</select>`;
+    const units=u.role==='training'?(await api('/api/statistics/departments')).items.map(/** @param {{department:string,department_name:string}} unit */unit=>({code:unit.department,name:unit.department_name})):departments.map(code=>({code,name:code}));
+    departmentFilter.outerHTML=`<select name="department" aria-label="Khoa"><option value="">Tất cả khoa</option>${units.map(/** @param {{code:string,name:string}} unit */unit=>`<option value="${esc(unit.code)}">${esc(unit.name)}</option>`).join('')}</select>`;
   }
   if(me.signature_policy==='local'){
     document.querySelector('#content .deadline')?.insertAdjacentHTML('afterend','<p class="note">Chế độ local: kiểm tra chữ ký mật mã, nội dung PDF và người ký. Chưa xác minh CA và tình trạng thu hồi chứng thư.</p>');
@@ -174,8 +187,21 @@ async function prepareResubmission(row){
 }
 
 async function loadList(){
+  const generation=++listRefreshGeneration;
   const params=new URLSearchParams();for(const [k,v] of new FormData(form('filters'))){if(typeof v==='string'&&v)params.set(k,v);}params.set('page',String(state.page));
-  const [data,courses]=await Promise.all([api('/api/submissions?'+params),state.user?.role==='teacher'?api('/api/courses'):Promise.resolve(null)]);
+  const statisticsParams=new URLSearchParams();for(const key of ['year','semester','department'])if(params.get(key))statisticsParams.set(key,params.get(key)||'');
+  if(state.user?.role==='training'){
+    const year=select('statistics-year'),value=params.get('year')||'';
+    if(value&&!Array.from(year.options).some(option=>option.value===value))year.add(new Option(value,value));
+    year.value=value;select('statistics-semester').value=params.get('semester')||'';
+  }
+  const [data,courses,statistics]=await Promise.all([api('/api/submissions?'+params),state.user?.role==='teacher'?api('/api/courses'):Promise.resolve(null),state.user?.role==='training'?api('/api/statistics/departments?'+statisticsParams):Promise.resolve(null)]);
+  if(generation!==listRefreshGeneration)return;
+  const statisticsHost=document.getElementById('department-statistics-table');
+  if(statistics&&statisticsHost){
+    statisticsHost.innerHTML=statistics.items.length?`<div class="table-wrap"><table><thead><tr><th>Tên Khoa</th><th>Lớp đã nộp bảng điểm / Tổng số lớp học phần</th><th>Chi tiết</th></tr></thead><tbody>${statistics.items.map(/** @param {{department:string,department_name:string,submitted_courses:number,total_courses:number}} row */row=>`<tr><td>${esc(row.department_name||row.department)} <small>${esc(row.department)}</small></td><td>${row.submitted_courses} / ${row.total_courses}</td><td><button type="button" class="secondary department-detail" data-department="${esc(row.department)}" aria-label="Chi tiết ${esc(row.department_name||row.department)}">Chi tiết</button></td></tr>`).join('')}</tbody><tfoot><tr><th>Tổng cộng</th><th>${statistics.submitted_courses} / ${statistics.total_courses}</th><th></th></tr></tfoot></table></div>`:'<p>Chưa có lớp học phần phù hợp để thống kê.</p>';
+    for(const button of statisticsHost.querySelectorAll('.department-detail'))if(button instanceof HTMLButtonElement)button.onclick=()=>{void busy(()=>showDepartmentDetails(button.dataset.department||'',statisticsParams),button);};
+  }
   if(courses){state.courses=courses;renderTeachingCourses();}
   state.items=data.items;state.total=data.total;state.pages=data.pages;
   const table=document.getElementById('table');if(!table)return;
@@ -205,6 +231,26 @@ async function loadList(){
   }
   const total=document.getElementById('total'),page=document.getElementById('page');if(total)total.textContent=`${data.total} hồ sơ`;if(page)page.textContent=`Trang ${state.page}/${state.pages}`;
   const prev=document.getElementById('prev'),next=document.getElementById('next');if(prev instanceof HTMLButtonElement)prev.disabled=state.page<=1;if(next instanceof HTMLButtonElement)next.disabled=state.page>=state.pages;
+}
+
+/** @param {string} department @param {URLSearchParams} filters */
+async function showDepartmentDetails(department,filters){
+  const params=new URLSearchParams();for(const key of ['year','semester'])if(filters.get(key))params.set(key,filters.get(key)||'');
+  const info=await api(`/api/statistics/departments/${encodeURIComponent(department)}/details?${params}`);
+  const dialog=document.getElementById('detail-dialog'),host=document.getElementById('detail');
+  if(!(dialog instanceof HTMLDialogElement)||!host)return;
+  host.innerHTML=`<div class="modal-header"><div><h2>Chi tiết ${esc(info.department_name)}</h2><p>${esc(info.year||'Tất cả năm học')} · ${info.semester?'Học kỳ '+esc(info.semester):'Tất cả học kỳ'}</p></div><button type="button" class="secondary" data-action="close" aria-label="Đóng chi tiết khoa">✕</button></div><p>${info.teachers.length} giảng viên · ${info.submitted_courses} / ${info.total_courses} lớp đã nộp bảng điểm. Mỗi lớp tính một lần, kể cả hồ sơ bị trả lại.</p><label>Tìm giảng viên hoặc lớp<input id="department-detail-search" placeholder="Họ tên, email, tên lớp hoặc mã lớp"></label><div id="department-detail-results"></div>`;
+  /** @typedef {{id:number,code:string,title:string,year:string,semester:string,submitted:number}} DetailCourse */
+  /** @typedef {{id:number,name:string,email:string,total_courses:number,submitted_courses:number,courses:DetailCourse[]}} DetailTeacher */
+  const teachers=/** @type {DetailTeacher[]} */(info.teachers);
+  const results=document.getElementById('department-detail-results');
+  const draw=()=>{
+    if(!results)return;
+    const query=input('department-detail-search').value.trim().toLocaleLowerCase('vi');
+    const matches=teachers.map(t=>({...t,visibleCourses:(t.name+' '+t.email).toLocaleLowerCase('vi').includes(query)?t.courses:t.courses.filter(c=>(c.title+' '+c.code).toLocaleLowerCase('vi').includes(query))})).filter(t=>t.visibleCourses.length);
+    results.innerHTML=matches.length?`<div class="table-wrap"><table><thead><tr><th>Giảng viên</th><th>Email</th><th>Đã nộp / Tổng lớp</th></tr></thead><tbody>${matches.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.email)}</td><td>${t.submitted_courses} / ${t.total_courses}</td></tr><tr><td colspan="3"><details ${query?'open':''}><summary>Danh sách lớp (${t.visibleCourses.length}${query?' phù hợp':''})</summary><table><thead><tr><th>Lớp học phần</th><th>Học kỳ / Năm học</th><th>Nộp bảng điểm</th></tr></thead><tbody>${t.visibleCourses.map(c=>`<tr><td>${esc(c.title)}<small>${esc(c.code)}</small></td><td>HK ${esc(c.semester)}<small>${esc(c.year)}</small></td><td>${c.submitted?'Đã nộp':'Chưa nộp'}</td></tr>`).join('')}</tbody></table></details></td></tr>`).join('')}</tbody></table></div>`:`<p>${teachers.length?'Không tìm thấy giảng viên hoặc lớp phù hợp.':'Khoa chưa có lớp học phần trong năm học/học kỳ đã chọn.'}</p>`;
+  };
+  input('department-detail-search').oninput=draw;draw();dialog.showModal();
 }
 
 /** @param {Submission} row */
@@ -262,14 +308,56 @@ async function detail(id){
 }
 
 async function adminView(){
-  shell();const [userData,logs,ops]=await Promise.all([api('/api/admin/users'),api('/api/admin/audit'),api('/api/admin/operations')]);const users=/** @type {User[]} */(userData);
+  shell();const [userData,logs,ops,departmentData]=await Promise.all([api('/api/admin/users'),api('/api/admin/audit'),api('/api/admin/operations'),api('/api/admin/departments')]);const users=/** @type {User[]} */(userData);
+  /** @typedef {{code:string,name:string,statistical:number}} Department */
+  const departments=/** @type {Department[]} */(departmentData);
+  const departmentOptions=()=>'<option value="">Chọn khoa / đơn vị</option>'+departments.map(d=>`<option value="${esc(d.code)}">${esc(d.name)} (${esc(d.code)})</option>`).join('');
   content(`<section class="page-heading"><div class="eyebrow">CẤU HÌNH & KIỂM SOÁT</div><h1>Quản trị hệ thống</h1><p>Cấp tài khoản, liên kết chứng thư và cấu hình đợt nộp bảng điểm.</p></section><div class="admin-grid"><section class="records"><h2>Cấp tài khoản trường</h2><form id="user-form"><label>Họ tên<input name="name" required></label><label>Email @vku.udn.vn<input name="email" type="email" required></label><label>Mật khẩu tạm (ít nhất 12 ký tự)<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><label>Vai trò<select name="role">${Object.entries(roles).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label><label>Khoa<input name="department" required></label><label>Fingerprint chứng thư SHA-256<input name="fingerprint" pattern="[a-fA-F0-9]{64}" placeholder="64 ký tự hex; có thể cấu hình sau"></label><button class="primary">Cấp tài khoản</button></form></section><section class="records"><h2>Danh mục từ UIS</h2><form id="course-form"><label>Mã LHP<input name="code" required></label><label>Tên học phần / lớp trên PDF<input name="title" required></label><div class="two"><label>Năm học<input name="year" placeholder="2025-2026" pattern="[0-9]{4}-[0-9]{4}" required></label><label>Học kỳ<select name="semester"><option>1</option><option>2</option><option>3</option></select></label></div><label>Khoa<input name="department" required></label><label>Giảng viên<select name="teacher_id" required><option value="">Chọn giảng viên</option>${users.filter(u=>u.role==='teacher'&&u.active).map(u=>`<option value="${u.id}">${esc(u.name+' · '+u.department)}</option>`).join('')}</select></label><label>PDF tương đối trong UIS_EXPORT_DIR<input name="source_pdf" placeholder="exports/17210.pdf"></label><label>Các mã từ URL UIS (phân cách bằng dấu phẩy)<input name="uis_document_id" pattern="[0-9, ]+" placeholder="17210, 17219"></label><button class="primary">Thêm lớp học phần</button></form></section></div><section class="records"><h2>Thời hạn nộp</h2><form id="deadline-form" class="decision"><label>Ngày giờ kết thúc (giờ máy hiện tại)<input name="deadline" type="datetime-local" required></label><button class="secondary">Lưu thời hạn</button></form><p class="muted">Sau thời hạn, GV và TK chỉ xem và tải. Phòng Đào tạo tiếp tục tiếp nhận hồ sơ đang chờ.</p></section><section class="records"><h2>Tài khoản & chứng thư</h2><div class="table-wrap"><table><thead><tr><th>Người dùng</th><th>Vai trò</th><th>Fingerprint SHA-256</th><th>Trạng thái</th><th></th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name)}<small>${esc(u.email)}</small></td><td>${esc(roles[u.role])}</td><td><input id="fp-${u.id}" value="${esc(u.fingerprint)}" aria-label="Fingerprint ${esc(u.name)}"></td><td><label class="checkbox"><input id="active-${u.id}" type="checkbox" ${u.active?'checked':''}> Hoạt động</label></td><td><button class="secondary save-user" data-user="${u.id}">Lưu</button></td></tr>`).join('')}</tbody></table></div></section><section class="records"><h2>Nhật ký gần nhất</h2><div class="table-wrap"><table><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Hành động</th><th>Hồ sơ</th></tr></thead><tbody>${logs.map(/** @param {{created_at:string,user_id:number,action:string,target:string}} l */l=>`<tr><td>${esc(new Date(l.created_at).toLocaleString('vi-VN'))}</td><td>${l.user_id}</td><td>${esc(l.action)}</td><td>${esc(l.target)}</td></tr>`).join('')}</tbody></table></div></section>`);
   /** @param {string} id @param {string} url @param {string} method @param {(d:Record<string,FormDataEntryValue>)=>unknown} transform */
   function bind(id,url,method='POST',transform=d=>d){const f=form(id);f.onsubmit=e=>{e.preventDefault();void busy(async()=>{await api(url,{method,body:JSON.stringify(transform(Object.fromEntries(new FormData(f))))});message('Đã lưu cấu hình.');await adminView();},f.querySelector('button'));};}
+  for(const id of ['user-form','course-form']){
+    const field=form(id).querySelector('[name=department]');
+    if(field)field.outerHTML=`<select name="department" required>${departmentOptions()}</select>`;
+  }
   bind('user-form','/api/admin/users');bind('course-form','/api/admin/courses','POST',d=>({...d,teacher_id:Number(d.teacher_id)}));
   bind('deadline-form','/api/admin/deadline','PUT',d=>({deadline:new Date(String(d.deadline)).toISOString()}));
-  for(const button of root.querySelectorAll('.save-user')){if(button instanceof HTMLButtonElement)button.onclick=()=>{void busy(async()=>{const id=button.dataset.user;await api('/api/admin/users/'+id,{method:'PATCH',body:JSON.stringify({active:input('active-'+id).checked,fingerprint:input('fp-'+id).value})});message('Đã cập nhật tài khoản và hủy các phiên đăng nhập cũ.');await adminView();},button);};}
+  for(const button of root.querySelectorAll('.save-user')){if(button instanceof HTMLButtonElement)button.onclick=()=>{void busy(async()=>{const id=button.dataset.user;await api('/api/admin/users/'+id,{method:'PATCH',body:JSON.stringify({active:input('active-'+id).checked,fingerprint:input('fp-'+id).value})});if(Number(id)===state.user?.id){state.user=null;loginView();message('Đã cập nhật tài khoản. Vui lòng đăng nhập lại.');}else{message('Đã cập nhật tài khoản và hủy các phiên đăng nhập cũ.');await adminView();}},button);};}
   const contentRoot=document.getElementById('content');
+  document.querySelector('.admin-grid')?.insertAdjacentHTML('beforebegin',`<section class="records" id="department-admin"><h2>Danh mục Khoa / Đơn vị</h2><form id="department-form" class="filters"><label>Mã khoa<input name="code" maxlength="100" required></label><label>Tên khoa / đơn vị<input name="name" maxlength="150" required></label><label class="checkbox"><input name="statistical" type="checkbox" checked> Hiển thị trong thống kê khoa</label><button class="primary">Thêm khoa</button></form><div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên khoa / đơn vị</th><th>Thống kê</th><th>Thao tác</th></tr></thead><tbody>${departments.map(d=>`<tr data-department="${esc(d.code)}"><td>${esc(d.code)}</td><td>${esc(d.name)}</td><td>${d.statistical?'Có':'Không'}</td><td><button type="button" class="secondary edit-department">Sửa</button> <button type="button" class="secondary delete-department">Xóa</button></td></tr>`).join('')}</tbody></table></div></section>`);
+  form('department-form').onsubmit=e=>{e.preventDefault();void busy(async()=>{
+    const data=new FormData(form('department-form'));await api('/api/admin/departments',{method:'POST',body:JSON.stringify({code:data.get('code'),name:data.get('name'),statistical:data.has('statistical')})});message('Đã thêm khoa.');await adminView();
+  },form('department-form').querySelector('button'));};
+  for(const row of root.querySelectorAll('#department-admin tbody tr')){
+    if(!(row instanceof HTMLElement))continue;
+    const d=departments.find(d=>d.code===row.dataset.department);if(!d)continue;
+    const edit=row.querySelector('.edit-department'),remove=row.querySelector('.delete-department');
+    if(edit instanceof HTMLButtonElement)edit.onclick=()=>{
+      const dialog=document.getElementById('detail-dialog'),host=document.getElementById('detail');if(!(dialog instanceof HTMLDialogElement)||!host)return;
+      host.innerHTML=`<div class="modal-header"><h2>Sửa khoa / đơn vị</h2><button class="secondary" data-action="close" aria-label="Đóng sửa khoa">✕</button></div><form id="department-edit-form"><label>Mã khoa<input name="code" value="${esc(d.code)}" readonly></label><label>Tên khoa / đơn vị<input name="name" value="${esc(d.name)}" required maxlength="150"></label><label class="checkbox"><input name="statistical" type="checkbox" ${d.statistical?'checked':''}> Hiển thị trong thống kê khoa</label><button class="primary">Lưu khoa</button></form>`;
+      form('department-edit-form').onsubmit=e=>{e.preventDefault();void busy(async()=>{const data=new FormData(form('department-edit-form'));await api('/api/admin/departments/'+encodeURIComponent(d.code),{method:'PUT',body:JSON.stringify({code:d.code,name:data.get('name'),statistical:data.has('statistical')})});message('Đã cập nhật khoa.');await adminView();},form('department-edit-form').querySelector('button'));};dialog.showModal();
+    };
+    if(remove instanceof HTMLButtonElement)remove.onclick=()=>{if(!confirm(`Xóa khoa ${d.name} (${d.code})?`))return;void busy(async()=>{await api('/api/admin/departments/'+encodeURIComponent(d.code),{method:'DELETE'});message('Đã xóa khoa.');await adminView();},remove);};
+  }
+  const accountTable=root.querySelector('.save-user')?.closest('table');
+  if(accountTable){
+    accountTable.closest('.table-wrap')?.insertAdjacentHTML('beforebegin','<label>Tìm tài khoản<input id="account-search" placeholder="Họ tên, email, vai trò hoặc khoa"></label>');
+    for(const button of accountTable.querySelectorAll('.save-user')){
+      if(!(button instanceof HTMLButtonElement))continue;
+      const user=users.find(u=>u.id===Number(button.dataset.user));if(!user)continue;
+      const row=button.closest('tr');if(!row)continue;row.dataset.account=String(user.id);
+      row.children[0]?.insertAdjacentHTML('beforeend',`<small>${esc(departments.find(d=>d.code===user.department)?.name||user.department)}</small>`);
+      button.parentElement?.insertAdjacentHTML('beforeend',` <button class="secondary edit-account">Sửa</button> <button class="secondary delete-account" ${user.id===state.user?.id?'disabled':''}>Xóa</button>`);
+      const edit=row.querySelector('.edit-account'),remove=row.querySelector('.delete-account');
+      if(edit instanceof HTMLButtonElement)edit.onclick=()=>{
+        const dialog=document.getElementById('detail-dialog'),host=document.getElementById('detail');if(!(dialog instanceof HTMLDialogElement)||!host)return;
+        host.innerHTML=`<div class="modal-header"><h2>Sửa tài khoản trường</h2><button class="secondary" data-action="close" aria-label="Đóng sửa tài khoản">✕</button></div><form id="account-edit-form"><label>Họ tên<input name="name" value="${esc(user.name)}" required maxlength="100"></label><label>Email @vku.udn.vn<input name="email" type="email" value="${esc(user.email)}" required></label><label>Vai trò<select name="role">${Object.entries(roles).map(([code,name])=>`<option value="${code}">${esc(name)}</option>`).join('')}</select></label><label>Khoa<select name="department" required>${departmentOptions()}</select></label><label>Mật khẩu mới (để trống để giữ nguyên)<input name="password" type="password" minlength="12" autocomplete="new-password"></label><label>Fingerprint chứng thư SHA-256<input name="fingerprint" value="${esc(user.fingerprint)}" pattern="[a-fA-F0-9]{64}"></label><label class="checkbox"><input name="active" type="checkbox" ${user.active?'checked':''}> Hoạt động</label><button class="primary">Lưu tài khoản</button></form>`;
+        const f=form('account-edit-form');const role=f.querySelector('[name=role]'),dept=f.querySelector('[name=department]');if(role instanceof HTMLSelectElement)role.value=user.role;if(dept instanceof HTMLSelectElement)dept.value=user.department;
+        f.onsubmit=e=>{e.preventDefault();void busy(async()=>{const data=new FormData(f);await api('/api/admin/users/'+user.id,{method:'PATCH',body:JSON.stringify({...Object.fromEntries(data),active:data.has('active')})});message('Đã cập nhật tài khoản.');if(user.id===state.user?.id){state.user=null;loginView();message('Đã cập nhật tài khoản. Vui lòng đăng nhập lại.');}else await adminView();},f.querySelector('button'));};dialog.showModal();
+      };
+      if(remove instanceof HTMLButtonElement)remove.onclick=()=>{if(!confirm(`Xóa tài khoản ${user.name} (${user.email}), vai trò ${roles[user.role]}?`))return;void busy(async()=>{await api('/api/admin/users/'+user.id,{method:'DELETE'});message('Đã xóa tài khoản.');await adminView();},remove);};
+    }
+    input('account-search').oninput=()=>{const query=input('account-search').value.toLocaleLowerCase('vi');for(const row of accountTable.querySelectorAll('tbody tr'))if(row instanceof HTMLElement)row.hidden=!(row.textContent||'').toLocaleLowerCase('vi').includes(query);};
+  }
   if(contentRoot)contentRoot.insertAdjacentHTML('beforeend',`<section class="records"><h2>Tích hợp & sao lưu</h2><p>CA ký số: ${ops.trust_configured?'Đã cấu hình':'Chưa cấu hình APP_TRUST_DIR'} · PDF nguồn UIS: ${ops.uis_export_configured?'Đã cấu hình':'Chưa cấu hình UIS_EXPORT_DIR'}</p><p>Backup định kỳ: ${ops.backup.configured?'Đã cấu hình':'Chưa cấu hình APP_BACKUP_DIR'}<br>Lần thành công gần nhất: ${esc(ops.backup.last_success?new Date(ops.backup.last_success).toLocaleString('vi-VN'):'Chưa có')}${ops.backup.last_error?'<br>Backup gần nhất lỗi. Kiểm tra log vận hành.':''}</p><button id="backup-now" class="secondary" ${ops.backup.configured?'':'disabled'}>Sao lưu ngay</button></section>`);
   const backup=document.getElementById('backup-now');if(backup)backup.onclick=()=>{void busy(async()=>{await api('/api/admin/backup',{method:'POST'});message('Backup đã hoàn tất kèm manifest SHA-256.');await adminView();},backup);};
   const mappingCourses=/** @type {Course[]} */(await api('/api/courses'));

@@ -47,6 +47,17 @@ class UserInput(Login):
 class UserUpdate(BaseModel):
     active: bool
     fingerprint: str = ''
+    name: str | None = Field(default=None,min_length=1,max_length=100)
+    email: str | None = Field(default=None,max_length=254)
+    role: str | None = Field(default=None,pattern=r'^(teacher|head|training|admin)$')
+    department: str | None = Field(default=None,min_length=1,max_length=100)
+    password: str = Field(default='',max_length=256)
+
+
+class DepartmentInput(BaseModel):
+    code: str = Field(min_length=1,max_length=100)
+    name: str = Field(min_length=1,max_length=150)
+    statistical: bool = True
 
 
 class CourseInput(BaseModel):
@@ -366,6 +377,54 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         return [r for r in rows if (u['role'] != 'teacher' or r['teacher_id'] == u['id'])
                 and (u['role'] != 'head' or r['department'] == u['department'])]
 
+    @app.get('/api/statistics/departments')
+    def department_statistics(u: User, year: str = '', semester: str = '', department: str = ''):
+        require(u,'training')
+        where,args=[],[]
+        for column,value in [('c.year',year),('c.semester',semester),('c.department',department)]:
+            if value:
+                where.append(column+'=?');args.append(value)
+        clause=' WHERE '+' AND '.join(where) if where else ''
+        with database.connect() as db:
+            rows=db.execute('''SELECT c.department,COUNT(*) total_courses,
+                SUM(CASE WHEN EXISTS(SELECT 1 FROM submissions s WHERE s.course_id=c.id)
+                    THEN 1 ELSE 0 END) submitted_courses
+                FROM courses c'''+clause+' GROUP BY c.department ORDER BY c.department',args).fetchall()
+            units={r['code']:r['name'] for r in db.execute('SELECT code,name FROM departments WHERE statistical=1 ORDER BY rowid')}
+        items={code:{'department':code,'department_name':name,'total_courses':0,'submitted_courses':0}
+               for code,name in units.items() if not department or department==code}
+        for row in rows:
+            items[row['department']]={**dict(row),'department_name':units.get(row['department'],row['department'])}
+        return {'items':list(items.values()),
+                'total_courses':sum(row['total_courses'] for row in rows),
+                'submitted_courses':sum(row['submitted_courses'] for row in rows)}
+
+    @app.get('/api/statistics/departments/{department}/details')
+    def department_details(department: str, u: User, year: str = '', semester: str = ''):
+        require(u,'training')
+        where,args=['c.department=?'],[department]
+        for column,value in [('c.year',year),('c.semester',semester)]:
+            if value:
+                where.append(column+'=?');args.append(value)
+        with database.connect() as db:
+            rows=db.execute('''SELECT c.id,c.code,c.title,c.year,c.semester,c.teacher_id,
+                u.name teacher_name,u.email teacher_email,
+                EXISTS(SELECT 1 FROM submissions s WHERE s.course_id=c.id) submitted
+                FROM courses c JOIN users u ON u.id=c.teacher_id WHERE '''+' AND '.join(where)+
+                ' ORDER BY u.name,u.id,c.year DESC,c.semester,c.title,c.id',args).fetchall()
+        teachers={}
+        for row in rows:
+            teacher=teachers.setdefault(row['teacher_id'],{'id':row['teacher_id'],'name':row['teacher_name'],
+                'email':row['teacher_email'],'total_courses':0,'submitted_courses':0,'courses':[]})
+            teacher['courses'].append({k:row[k] for k in ('id','code','title','year','semester','submitted')})
+            teacher['total_courses']+=1
+            teacher['submitted_courses']+=row['submitted']
+        summary=department_statistics(u,year,semester,department)
+        return {'department':department,
+                'department_name':summary['items'][0]['department_name'] if summary['items'] else department,
+                'year':year,'semester':semester,'total_courses':len(rows),
+                'submitted_courses':sum(row['submitted'] for row in rows),'teachers':list(teachers.values())}
+
     def pdf_response(data, name, inline=False):
         mode = 'inline' if inline else 'attachment'
         return Response(data, media_type='application/pdf', headers={'Content-Disposition': f'{mode}; filename="{name}"'})
@@ -588,6 +647,75 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         with database.connect() as db:
             return [public_user(r) for r in db.execute('SELECT * FROM users ORDER BY id')]
 
+    @app.get('/api/admin/departments')
+    def departments(u: User):
+        require(u,'admin')
+        with database.connect() as db:
+            return [dict(r) for r in db.execute('SELECT * FROM departments ORDER BY rowid')]
+
+    @app.post('/api/admin/departments')
+    def create_department(body: DepartmentInput, u: User):
+        require(u,'admin')
+        if not body.code.strip() or not body.name.strip() or '/' in body.code or any(ord(c)<32 for c in body.code):
+            raise HTTPException(422,'Mã và tên khoa không được trống.')
+        with database.connect() as db:
+            try:
+                db.execute('INSERT INTO departments VALUES(?,?,?)',(body.code.strip(),body.name.strip(),body.statistical))
+            except sqlite3.IntegrityError as exc:
+                raise HTTPException(409,'Mã khoa đã tồn tại.') from exc
+            audit(db,u['id'],'create_department',body.code)
+        return {'ok':True}
+
+    @app.put('/api/admin/departments/{code}')
+    def edit_department(code: str, body: DepartmentInput, u: User):
+        require(u,'admin')
+        if body.code != code or not body.name.strip():
+            raise HTTPException(422,'Giữ nguyên mã khoa và nhập tên hợp lệ.')
+        with database.connect() as db:
+            if not db.execute('SELECT 1 FROM departments WHERE code=?',(code,)).fetchone():
+                raise HTTPException(404,'Không tìm thấy khoa.')
+            db.execute('UPDATE departments SET name=?,statistical=? WHERE code=?',(body.name.strip(),body.statistical,code))
+            audit(db,u['id'],'update_department',code)
+        return {'ok':True}
+
+    @app.delete('/api/admin/departments/{code}')
+    def delete_department(code: str, u: User):
+        require(u,'admin')
+        with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if not db.execute('SELECT 1 FROM departments WHERE code=?',(code,)).fetchone():
+                raise HTTPException(404,'Không tìm thấy khoa.')
+            if db.execute('SELECT 1 FROM users WHERE department=? UNION SELECT 1 FROM courses WHERE department=?',(code,code)).fetchone():
+                raise HTTPException(409,'Khoa đang có tài khoản hoặc lớp học phần; không thể xóa.')
+            db.execute('DELETE FROM departments WHERE code=?',(code,))
+            audit(db,u['id'],'delete_department',code)
+        return {'ok':True}
+
+    def check_department(db, code):
+        if not db.execute('SELECT 1 FROM departments WHERE code=?',(code,)).fetchone():
+            raise HTTPException(422,'Hãy chọn khoa/đơn vị trong danh mục.')
+
+    def user_has_records(db, uid):
+        return db.execute('''SELECT 1 FROM courses WHERE teacher_id=? OR co_teacher_id=?
+            UNION SELECT 1 FROM submissions WHERE teacher_id=? OR head_id=? OR second_teacher_id=?
+            UNION SELECT 1 FROM audit WHERE user_id=?''',(uid,uid,uid,uid,uid,uid)).fetchone()
+
+    @app.delete('/api/admin/users/{uid}')
+    def delete_user(uid: int, u: User):
+        require(u,'admin')
+        if uid==u['id']:
+            raise HTTPException(422,'Không thể xóa tài khoản đang sử dụng.')
+        with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if not db.execute('SELECT 1 FROM users WHERE id=?',(uid,)).fetchone():
+                raise HTTPException(404,'Không tìm thấy người dùng.')
+            if user_has_records(db,uid):
+                raise HTTPException(409,'Tài khoản có lớp, hồ sơ hoặc lịch sử; hãy khóa tài khoản thay vì xóa.')
+            db.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+            db.execute('DELETE FROM users WHERE id=?',(uid,))
+            audit(db,u['id'],'delete_user',uid)
+        return {'ok':True}
+
     @app.post('/api/admin/users')
     def create_user(body: UserInput, u: User):
         require(u,'admin')
@@ -601,6 +729,10 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         except ValueError as e:
             raise HTTPException(422,str(e)) from e
         with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            check_department(db,body.department)
+            if not body.name.strip():
+                raise HTTPException(422,'Họ tên không được trống.')
             cur = db.execute('INSERT INTO users(email,name,role,department,password,fingerprint) VALUES(?,?,?,?,?,?)',
                              (email,body.name,body.role,body.department,password,body.fingerprint.lower()))
             audit(db,u['id'],'create_user',cur.lastrowid)
@@ -614,9 +746,27 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         if body.fingerprint and not re.fullmatch('[a-fA-F0-9]{64}',body.fingerprint):
             raise HTTPException(422,'Fingerprint cần 64 ký tự hex SHA-256.')
         with database.connect() as db:
-            if not db.execute('SELECT id FROM users WHERE id=?',(uid,)).fetchone():
+            db.execute('BEGIN IMMEDIATE')
+            existing=db.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+            if not existing:
                 raise HTTPException(404,'Không tìm thấy người dùng.')
-            db.execute('UPDATE users SET active=?,fingerprint=? WHERE id=?',(body.active,body.fingerprint.lower(),uid))
+            fields={key:getattr(body,key) if getattr(body,key) is not None else existing[key] for key in ('name','email','role','department')}
+            fields['name']=fields['name'].strip();fields['email']=fields['email'].strip().lower()
+            if not fields['name'] or not valid_email(fields['email']):
+                raise HTTPException(422,'Họ tên hoặc email không hợp lệ.')
+            check_department(db,fields['department'])
+            if uid==u['id'] and fields['role']!='admin':
+                raise HTTPException(422,'Không thể bỏ vai trò admin của tài khoản đang sử dụng.')
+            if fields['role']!=existing['role'] and user_has_records(db,uid):
+                raise HTTPException(409,'Tài khoản có dữ liệu liên kết; hãy cấp vai trò khác cùng email.')
+            if fields['department']!=existing['department'] and db.execute('SELECT 1 FROM courses WHERE teacher_id=? AND department<>?',(uid,fields['department'])).fetchone():
+                raise HTTPException(409,'GV đang có lớp thuộc khoa hiện tại; cần xử lý phân công trước khi đổi khoa.')
+            try:
+                password=hash_password(body.password) if body.password else existing['password']
+            except ValueError as exc:
+                raise HTTPException(422,str(exc)) from exc
+            db.execute('UPDATE users SET name=?,email=?,role=?,department=?,password=?,active=?,fingerprint=? WHERE id=?',
+                       tuple(fields[k] for k in ('name','email','role','department'))+(password,body.active,body.fingerprint.lower(),uid))
             db.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
             audit(db,u['id'],'update_user',uid)
         return {'ok': True}
@@ -632,6 +782,8 @@ def create_app(root=None, key=None, verifier=None, secure=None):
         except ValueError as exc:
             raise HTTPException(422,str(exc)) from exc
         with database.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            check_department(db,body.department)
             teacher = db.execute("SELECT * FROM users WHERE id=? AND role='teacher' AND active=1",(body.teacher_id,)).fetchone()
             if not teacher or teacher['department'] != body.department:
                 raise HTTPException(422,'GV phải thuộc khoa và đang hoạt động.')

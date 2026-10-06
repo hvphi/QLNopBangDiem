@@ -51,9 +51,18 @@ T-01…T-12 là phạm vi triển khai local. T-13 giữ todo và tạm hoãn th
 | [T-40](T-40.md) | Dropdown Khoa và so khớp PDF với Excel/CSV xuất daotao | T-39 | done |
 | [T-41](T-41.md) | So khớp với PDF xuất từ daotao, lưu giấy phép thư viện | T-40 | done |
 | [T-42](T-42.md) | Đồng bộ PRD và task cards với triển khai hiện tại | T-41 | done |
+| [T-43](T-43.md) | So khớp trực tiếp bảng điểm từ daotao | T-42 | blocked (người dùng tạm dừng) |
+| [T-44](T-44.md) | Triển khai Cloudflare theo đích được xác nhận | T-42 | todo (hoãn; dự kiến server VKU) |
+| [T-45](T-45.md) | Thống kê lớp đã nộp bảng điểm theo khoa cho ĐT | T-42 | done |
+| [T-46](T-46.md) | Hiển thị đủ bốn khoa và Tổ Cơ bản | T-45 | done |
+| [T-47](T-47.md) | Đồng bộ lớp theo khoa từ thời khóa biểu và danh sách tài khoản | T-46 | done |
+| [T-48](T-48.md) | Xem chi tiết lớp và giảng viên theo khoa | T-47 | done |
+| [T-49](T-49.md) | Chọn năm học và học kỳ ngay trên bảng thống kê | T-48 | done |
+| [T-50](T-50.md) | Quản lý CRUD khoa và tài khoản trường | T-49 | done |
+| [T-51](T-51.md) | Đồng bộ PRD và task cards đến CRUD quản trị | T-50 | done |
 
 T-14 chạy sau T-12 và không phụ thuộc T-13 đang tạm hoãn; không có task triển khai song song.
 
 ## Cách đọc trạng thái và yêu cầu hiện tại
 
-PRD [phiên bản 2.0](../PRD_gem.md) và prd_refs của từng card mô tả yêu cầu hiện hành. T-01…T-12 và T-14…T-41 đã done theo phạm vi local; T-13 todo/hoãn. T-42 đồng bộ tài liệu. Các card cũ giữ kết quả lịch sử, có ghi chú khi được card sau thay thế (mã UIS T-24, chữ ký T-36, nút/status T-33/T-35, PDF so khớp T-41). Bằng chứng kiểm thử theo từng lần chạy tại [TEST_REPORT.md](../TEST_REPORT.md); chưa nghiệm thu kết nối trường/SLA production.
+PRD [phiên bản 2.1](../PRD_gem.md) và prd_refs của từng card mô tả yêu cầu hiện hành. T-01…T-12, T-14…T-42 và T-45…T-51 đã done theo phạm vi local/tài liệu. T-13 todo/hoãn; T-43 blocked do người dùng tạm dừng API so khớp; T-44 todo/hoãn Cloudflare, dự kiến server VKU sau. Các card cũ giữ kết quả lịch sử, có ghi chú khi được card sau thay thế (mã UIS T-24, chữ ký T-36, nút/status T-33/T-35, PDF so khớp T-41). Bằng chứng kiểm thử theo từng lần chạy tại [TEST_REPORT.md](../TEST_REPORT.md); chưa nghiệm thu kết nối trường/SLA production.

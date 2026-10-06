@@ -1,5 +1,50 @@
 # Báo cáo kiểm tra local
 
+## Rà soát tài liệu và bản đưa lên GitHub (T-51, 06/10/2026)
+
+- PRD 2.1 mô tả local đến T-50; cập nhật phạm vi, yêu cầu thống kê/chi tiết/bộ lọc/CRUD và truy vết T-43…T-51. CRUD nằm mục Quản trị §3.6; card T-50 trỏ đúng mục. Card/index/DEPLOYMENT ghi rõ API so khớp và Cloudflare do người dùng tạm dừng, không coi đã triển khai.
+- Typecheck/Python syntax/51 cards/dependency DAG và git diff --check đạt. Giữ bằng chứng T-50: 69 system/catalog/statistics tests, 9 tests bản cuối và E2E đã đạt; không chạy lại toàn bộ test chức năng cho thay đổi chỉ tài liệu.
+- Danh sách commit gồm code, test, script và tài liệu liên quan. Không đưa Acc, runtime, .local, báo cáo riêng, Excel/PDF/khóa hoặc Demo.docx lên GitHub. Không triển khai Cloudflare/API hay sửa dữ liệu live trong lần rà soát này.
+
+## CRUD khoa và tài khoản trường (T-50, 06/10/2026)
+
+- Admin có bảng/form CRUD Khoa/Đơn vị, sửa tên/thống kê với mã ổn định, xóa đơn vị chưa dùng. Combobox Khoa ở tạo/sửa tài khoản và tạo lớp lấy từ DB. Tài khoản có tìm kiếm, Sửa/Xóa ngoài Lưu fingerprint/trạng thái hiện có; sửa tên/email/role/khoa/password tùy chọn, cùng email nhiều role. UI xác nhận đối tượng xóa. Tên thống kê lấy danh mục động; đơn vị VKU/ĐT/Chưa phân khoa không là dòng thống kê mặc định.
+- 69 tests hệ thống/statistics/catalog PASS; sau bổ sung đơn vị mặc định, 9 catalog/statistics tests PASS. Bao gồm migration giữ dữ liệu/không tái seed mục xóa, CRUD, duplicate, multi-role, password trống giữ nguyên/đổi password, session invalidation, không lộ password, RBAC/CSRF, tự khóa/xóa/mất quyền admin bị chặn, tài khoản có dữ liệu/audit hoặc khoa đang dùng cấm xóa, role/khoa có phân công cấm thay đổi.
+- Typecheck/syntax/50 cards DAG đạt. E2E PASS thêm/sửa/xóa khoa, combobox thêm option động, cấp/sửa tên/khoa/xóa tài khoản chưa dùng, xác nhận xóa; các flow ký/trả/resubmit/duyệt/So Khớp/hạn/mobile cũ đạt. Ảnh admin.png kiểm tra có bảng Khoa, combobox, danh sách/search/nút sửa/xóa.
+- Sao lưu trước migration tại .local/pre-admin-catalog-20261006.sqlite3. Website restart 8000; so sánh đầy đủ rows trước/sau giữ nguyên 211 users, 1.618 courses, 4 submissions, 6 versions; chỉ thêm danh mục 8 đơn vị, trong đó 5 thống kê. Không xóa dữ liệu live hay thay PDF/mật khẩu.
+
+## Combo năm học/học kỳ thống kê (T-49, 06/10/2026)
+
+- Thêm Năm học/Học kỳ ngay trên bảng thống kê ĐT, năm từ courses và Tất cả, kỳ 1/2/hè/Tất cả. Đổi chọn tự cập nhật, reset trang 1, đồng bộ với bộ lọc danh sách; bấm Lọc phía dưới đồng bộ ngược. Nút Chi tiết giữ cùng năm/kỳ. Chặn response cũ ghi đè khi đổi chọn nhanh.
+- Typecheck/syntax/49 cards/DAG PASS. E2E PASS danh mục năm, đổi 2024–2025/kỳ 2 có 0/1 và dialog cùng kỳ; đổi hè đủ 5 dòng 0/0; quay Tất cả 1/7; đồng bộ ngược bộ lọc năm. Các flow hiện có còn đạt. Ảnh department-period-filters.png kiểm tra hai combo, bố cục và kỳ rỗng đạt.
+- Chỉ frontend/docs/test thay đổi; không sửa API hay dữ liệu. Website port 8000 health OK, frontend phục vụ trực tiếp file mới; người dùng tải lại trang để nhận thay đổi.
+
+## Chi tiết lớp/GV theo khoa (T-48, 06/10/2026)
+
+- Mỗi khoa có nút Chi tiết trong thống kê ĐT. Dialog lấy dữ liệu live theo khoa được bấm và năm/kỳ đang lọc: họ tên/email GV, số đã nộp/tổng lớp, mở danh sách tên/mã lớp và năm/kỳ/đã nộp/chưa nộp; tìm GV/email/tên/mã lớp; trạng thái rỗng rõ ràng. Không dùng file Markdown làm dữ liệu cố định, không sửa phân công/hồ sơ/PDF.
+- API chỉ training. 4 statistics tests PASS gồm 2 tests bổ sung details: khoa/năm/kỳ, một lớp nhiều hồ sơ/rejected tính một lần, rỗng/đơn vị lạ, whitelist trường trả về, 401/403 các vai trò khác. Typecheck/Python syntax/48 cards/DAG PASS.
+- E2E PASS 5 nút, mở/đóng dialog, tìm OLD01, hiển thị lớp chưa nộp, tìm không có kết quả, Tổ Cơ bản rỗng, năm 2024–2025 chỉ có lớp tương ứng. Ảnh department-details.png đã kiểm tra: bảng GV và danh sách lớp trong dialog rõ, nút Chi tiết từng khoa hiện đầy đủ. Các luồng nộp/ký/trả/nộp lại/duyệt/So Khớp/admin/hạn/mobile còn đạt.
+- Website restart port 8000, API details live từng đơn vị khớp tổng thống kê: CNTT 79 GV/789 lớp (4 đã nộp), KTMT 22/286, KTS 53/300, AIDS 2/26, CB 40/216. Bộ đếm dùng dữ liệu live có thể thay đổi khi admin thêm lớp; không đồng bộ lại hay xóa lớp trong task này.
+
+## Đồng bộ lớp theo khoa từ thời khóa biểu/Excel (T-47, 06/10/2026)
+
+- HTTP đọc trang công khai daotao thành công 200, 1.662 dòng, dropdown nguồn HK1 năm 2026–2027. Đối chiếu tên GV với sheet Tai khoan VKU, mã/tên khoa từ Danh muc Khoa trong Acc/DS_tai_khoan_VKU_cap_nhat.xlsx. Không xuất hay thay mật khẩu. Gom các buổi cùng GV/lớp: CNTT 789, KTMT 286, KTS 300, AIDS 26, CB 216, tổng 1.617. 28 lớp Bank Agribank có khoa chưa xác định được báo cáo riêng; 9 tên lớp có nhiều người phụ trách giữ riêng theo GV, lưu báo cáo để đối chiếu. Các mã lịch trình nguồn là mã buổi/phân công, không dùng làm số lớp.
+- 8 tests PASS (6 importer + 2 statistics): rowspan, sai kỳ nguồn, tên thiếu/trùng/bỏ dấu, khoa chưa rõ, tài khoản không khớp, nhiều vai trò cùng email, bỏ qua cột mật khẩu, gom buổi/idempotence, bảo toàn hồ sơ và rollback khi quyền thay đổi. Không sửa UI; API live trả 200, đủ 5 khoa, 4/1.617 khớp SQL độc lập.
+- Sao lưu SQLite online trước cập nhật tại .local/timetable-departments-20261006.backup.sqlite3. Đối chiếu toàn bộ dữ liệu trước/sau: 211 users, 4 submissions, 6 versions giữ nguyên; thêm 1.602 lớp, cập nhật lịch 5 lớp. Không xóa lớp/hồ sơ, không sửa PDF. Nguồn HTML và báo cáo JSON lưu .local, báo cáo đọc được trong docs/reports, không đưa dữ liệu riêng vào Git. API so khớp điểm và triển khai vẫn hoãn.
+
+## Đủ 4 khoa và Tổ Cơ bản (T-46, 06/10/2026)
+
+- Danh mục theo mã tài khoản: CNTT/Khoa Khoa học máy tính, KTMT/Khoa Kỹ thuật máy tính và Điện tử, KTS/Khoa Kinh tế số và Thương mại điện tử, AIDS/Khoa Trí tuệ nhân tạo và Khoa học dữ liệu, CB/Tổ Cơ bản. API thống kê ghép count từ lớp với danh mục, hiện 0/0 cho đơn vị không có lớp; giữ đơn vị ngoài danh mục nếu có để không mất tổng. Dropdown ĐT có đủ 5 tên và Tất cả khoa. Không sửa mã/phân công lớp/GV.
+- 2 API tests PASS đủ 5 đơn vị/0-0/filter kỳ rỗng/filter CB/đơn vị lạ và quy tắc count/RBAC cũ. Typecheck/Python syntax/46 cards/DAG PASS. E2E PASS 5 dòng thống kê và 6 options, Tổ Cơ bản 0/0, lọc khoa/năm và các flow hiện có; ảnh department-statistics.png kiểm tra đạt.
+- Website restart; API training live trả đủ CNTT/KTMT/KTS/AIDS/CB và giữ tổng 4/16. PRD/cards cập nhật. Tên tham chiếu nguồn VKU: https://vku.udn.vn/vi/co-cau-to-chuc/khoa-khoa-hoc-may-tinh/; https://daotao.vku.udn.vn/chuong-trinh-dao-tao; lịch VKU tháng 09/2026 ghi Khoa Trí tuệ nhân tạo và Khoa học dữ liệu: https://lichtuan.vku.udn.vn/index.php?module=LichTuan. Mã đơn vị lấy từ danh sách tài khoản đã được người dùng cung cấp.
+
+## Thống kê nộp bảng điểm theo khoa (T-45, 06/10/2026)
+
+- Dashboard training có bảng Tên Khoa — Lớp đã nộp/Tổng số lớp học phần và tổng cộng phía trên danh sách hồ sơ. Theo năm/kỳ/khoa; độc lập pagination, từ khóa, state và loại hồ sơ. EXISTS đếm mỗi lớp có ít nhất một hồ sơ một lần, kể cả rejected; không yêu cầu đủ hai loại. Denominator lấy toàn bộ courses trong cùng phạm vi, khoa chưa nộp hiện 0.
+- 2 API tests PASS: nhiều loại/hồ sơ một lớp không trùng, rejected, khoa 0, filter năm/kỳ/khoa/rỗng, filters danh sách không ảnh hưởng tổng, training only/401. Chạy với thư mục tạm riêng và tắt pytest cache vì thư mục pytest cũ bị khóa ACL Windows; không đổi ACL hay xóa thư mục cũ.
+- Typecheck/Python syntax/45 cards + DAG PASS. E2E PASS: CNTT 1/7 trong dataset, filter 2024-2025 hiện 0/1 dù danh sách hồ sơ rỗng; các luồng upload/ký/trả/resubmit/duyệt/archive/So Khớp/admin/hạn/mobile còn đạt. Ảnh department-statistics.png kiểm tra hiển thị đúng, không lẫn số hồ sơ với số lớp.
+- Website local restart; health và API thống kê training live đối chiếu bằng COUNT DISTINCT độc lập trong DB PASS. Không thay bảng điểm, trạng thái hoặc danh mục live. API daotao/Cloudflare vẫn hoãn theo yêu cầu.
+
 ## So Khớp PDF xuất daotao (T-41, 05/10/2026)
 
 - Giao diện chọn PDF nguồn, tự ghép cột cùng tên với PDF đã ký và cho chỉnh ghép cột. Đổi file xóa kết quả/cột cũ và yêu cầu xác nhận lại đúng môn/lớp/kỳ/loại. Hiển thị điểm từ PDF đã ký và PDF nguồn trên từng dòng lệch; PDF nguồn không cần chữ ký. API vẫn hỗ trợ CSV/XLSX để tương thích T-40.
